@@ -819,3 +819,8 @@ These are API Gateway or AppSync projects that intend to act as SaaS offerings.
 #### PA: Component of Larger Project
 
 These are repos that fit into a larger architecture. You MUST clarify how this component is intended to be consumed and work backwards from that to develop requirements and QA.
+
+
+#### Privacy
+
+REPOS SHOULD ALWAYS BE PRIVATE
