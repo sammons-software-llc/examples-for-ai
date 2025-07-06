@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+#
+# p-cli - Simple gh wrapper for sub-agent workflow commands
+# Provides consistent interface for Claude Code sub-agents
+#
+
+set -euo pipefail
+
+readonly ORG="sammons-software-llc"
+
+# Main command router
+case "${1:-help}" in
+    # Repository commands
+    create-repo)
+        gh repo create "$ORG/$2" --private --clone
+        ;;
+    
+    clone-framework)
+        gh api "repos/$ORG/examples-for-ai/contents/CLAUDE.md" --jq '.content' | base64 -d > CLAUDE.md
+        mkdir -p context archetypes personas examples
+        ;;
+    
+    # Task/Issue commands
+    create-task)
+        shift
+        gh issue create --label "task" "$@"
+        ;;
+    
+    list-tasks)
+        gh issue list --label "task" --state open
+        ;;
+    
+    move-task)
+        gh project item-edit --id "$2" --field-id "$3" --project-id "$4" --value "$5"
+        ;;
+    
+    # PR commands
+    create-pr)
+        shift
+        gh pr create "$@"
+        ;;
+    
+    review-pr)
+        gh pr review "$2" --comment -b "$3"
+        ;;
+    
+    approve-pr)
+        gh pr review "$2" --approve -b "${3:-LGTM}"
+        ;;
+    
+    request-changes)
+        gh pr review "$2" --request-changes -b "$3"
+        ;;
+    
+    merge-pr)
+        gh pr merge "$2" --squash --delete-branch
+        ;;
+    
+    # Project board commands
+    create-board)
+        gh project create --owner "$ORG" --title "$2"
+        ;;
+    
+    add-to-board)
+        gh project item-add "$2" --owner "$ORG" --content-id "$3" --content-type "$4"
+        ;;
+    
+    # Status commands
+    check-ci)
+        gh run list --limit 5
+        ;;
+    
+    check-pr-status)
+        gh pr checks "$2"
+        ;;
+    
+    # Branch protection
+    protect-branch)
+        gh api "repos/$ORG/$2/branches/main/protection" \
+            --method PUT \
+            --field required_status_checks='{"strict":true,"contexts":["lint","test","build"]}' \
+            --field enforce_admins=false \
+            --field required_pull_request_reviews='{"required_approving_review_count":1}'
+        ;;
+    
+    help|--help|-h)
+        cat << EOF
+p-cli - gh wrapper for sub-agent workflows
+
+Repository:
+  create-repo <name>           Create private repo under $ORG
+  clone-framework             Fetch framework files
+  
+Tasks:
+  create-task <args>          Create issue with task label
+  list-tasks                  List open tasks
+  move-task <id> <field> <project> <value>  Update task status
+  
+Pull Requests:
+  create-pr <args>            Create pull request
+  review-pr <num> <comment>   Add review comment
+  approve-pr <num> [comment]  Approve PR
+  request-changes <num> <msg> Request changes
+  merge-pr <num>              Squash merge PR
+  
+Project Boards:
+  create-board <title>        Create project board
+  add-to-board <proj> <id> <type>  Add item to board
+  
+Status:
+  check-ci                    Check CI status
+  check-pr-status <num>       Check PR checks
+  
+Setup:
+  protect-branch <repo>       Setup branch protection
+
+All commands are wrappers around gh CLI for consistent sub-agent usage.
+EOF
+        ;;
+    
+    *)
+        echo "Unknown command: $1"
+        echo "Run 'p-cli help' for usage"
+        exit 1
+        ;;
+esac

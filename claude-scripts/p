@@ -1,0 +1,291 @@
+#!/usr/bin/env bash
+#
+# p - Refined gh wrapper for sub-agent workflows
+# Optimized based on 50-project simulation
+#
+
+set -euo pipefail
+
+readonly ORG="sammons-software-llc"
+readonly CACHE_DIR="${HOME}/.p-cli-cache"
+readonly CACHE_TTL=3600  # 1 hour
+
+# Initialize cache
+[[ ! -d "$CACHE_DIR" ]] && mkdir -p "$CACHE_DIR"
+
+# Cache helper
+cache_get() {
+    local key="$1"
+    local file="$CACHE_DIR/$key"
+    if [[ -f "$file" ]] && [[ $(( $(date +%s) - $(stat -f %m "$file" 2>/dev/null || stat -c %Y "$file" 2>/dev/null) )) -lt $CACHE_TTL ]]; then
+        cat "$file"
+        return 0
+    fi
+    return 1
+}
+
+cache_set() {
+    local key="$1"
+    local value="$2"
+    echo "$value" > "$CACHE_DIR/$key"
+}
+
+# Main command router
+case "${1:-help}" in
+    # Repository commands
+    create-repo)
+        gh repo create "$ORG/$2" --private --clone
+        ;;
+    
+    clone-framework)
+        gh api "repos/$ORG/examples-for-ai/contents/CLAUDE.md" --jq '.content' | base64 -d > CLAUDE.md
+        mkdir -p context archetypes personas examples
+        ;;
+    
+    # Enhanced task commands
+    create-task)
+        shift
+        # Support --label, --assignee, --milestone
+        gh issue create --label "task" "$@"
+        ;;
+    
+    bulk-create-tasks)
+        # Read JSON file with task definitions
+        local file="$2"
+        local project_id="${3:-}"
+        
+        if [[ -f "$file" ]]; then
+            jq -c '.[]' "$file" | while read -r task; do
+                title=$(echo "$task" | jq -r '.title')
+                body=$(echo "$task" | jq -r '.body // ""')
+                labels=$(echo "$task" | jq -r '.labels // "task" | @csv' | tr -d '"')
+                
+                issue_num=$(gh issue create \
+                    --title "$title" \
+                    --body "$body" \
+                    --label "$labels" \
+                    --json number \
+                    -q '.number')
+                
+                echo "Created #$issue_num: $title"
+                
+                # Add to project if specified
+                if [[ -n "$project_id" ]]; then
+                    gh project item-add "$project_id" --owner "$ORG" --content-id "$issue_num" --content-type Issue
+                fi
+            done
+        fi
+        ;;
+    
+    create-typed-task)
+        # Template-based task creation
+        local type="$2"
+        local title="$3"
+        shift 3
+        
+        case "$type" in
+            feature)
+                body="## Acceptance Criteria\n- [ ] \n\n## Technical Requirements\n- \n\n## Definition of Done\n- [ ] Tests written\n- [ ] Documentation updated"
+                ;;
+            bug)
+                body="## Description\n\n## Steps to Reproduce\n1. \n\n## Expected Behavior\n\n## Actual Behavior\n"
+                ;;
+            security)
+                body="## Vulnerability\n\n## Impact\n\n## Remediation\n"
+                ;;
+            *)
+                body=""
+                ;;
+        esac
+        
+        gh issue create --title "$title" --body "$body" --label "task,$type" "$@"
+        ;;
+    
+    # PR commands with enhancements
+    create-pr)
+        shift
+        gh pr create "$@"
+        ;;
+    
+    get-pr-reviews)
+        local pr="$2"
+        local format="${3:-text}"
+        
+        if [[ "$format" == "json" ]]; then
+            gh pr view "$pr" --json reviews --jq '.reviews'
+        else
+            gh pr view "$pr" --json reviews --jq '.reviews[] | "\(.author.login): \(.state)"'
+        fi
+        ;;
+    
+    review-pr)
+        local pr="$2"
+        local comment="$3"
+        local author="${4:-agent}"
+        
+        # Add author prefix for tracking
+        gh pr review "$pr" --comment -b "[$author review] $comment"
+        ;;
+    
+    # Workflow shortcuts
+    complete-task)
+        local issue="$2"
+        local pr="$3"
+        local comment="${4:-Completed}"
+        
+        # Close issue with PR reference
+        gh issue close "$issue" --comment "$comment in PR #$pr"
+        
+        # Update project board if cached
+        if project_id=$(cache_get "project_id"); then
+            item_id=$(gh project item-list "$project_id" --owner "$ORG" --format json | jq -r ".items[] | select(.content.number == $issue) | .id")
+            if [[ -n "$item_id" ]]; then
+                gh project item-edit --id "$item_id" --field-id "Status" --project-id "$project_id" --value "Merged"
+            fi
+        fi
+        ;;
+    
+    # Agent coordination
+    set-context)
+        local key="$2"
+        local value="$3"
+        cache_set "context_$key" "$value"
+        ;;
+    
+    get-context)
+        local key="$2"
+        cache_get "context_$key" || echo ""
+        ;;
+    
+    wait-for-context)
+        local key="$2"
+        local timeout="${3:-300}"
+        local start=$(date +%s)
+        
+        while [[ $(($(date +%s) - start)) -lt $timeout ]]; do
+            if value=$(cache_get "context_$key"); then
+                echo "$value"
+                return 0
+            fi
+            sleep 5
+        done
+        
+        return 1
+        ;;
+    
+    get-agent-tasks)
+        local agent="${2:-}"
+        local status="${3:-open}"
+        
+        if [[ -n "$agent" ]]; then
+            gh issue list --label "task,$agent" --state "$status"
+        else
+            gh issue list --label "task" --state "$status"
+        fi
+        ;;
+    
+    # Status aggregation
+    check-reviews-complete)
+        local pr="$2"
+        local required="${3:-3}"  # Default 3 expert reviews
+        
+        local approved=$(gh pr view "$pr" --json reviews --jq '[.reviews[] | select(.state == "APPROVED")] | length')
+        
+        if [[ $approved -ge $required ]]; then
+            echo "true"
+            return 0
+        else
+            echo "false ($approved/$required approved)"
+            return 1
+        fi
+        ;;
+    
+    # Cache management
+    cache-project)
+        local name="$2"
+        local project_id=$(gh project list --owner "$ORG" --limit 100 --json id,title | jq -r ".[] | select(.title == \"$name Development\") | .id")
+        
+        if [[ -n "$project_id" ]]; then
+            cache_set "project_id" "$project_id"
+            echo "Cached project: $project_id"
+        fi
+        ;;
+    
+    clear-cache)
+        rm -rf "$CACHE_DIR"/*
+        echo "Cache cleared"
+        ;;
+    
+    # Bulk operations for efficiency
+    bulk-review)
+        local pr="$2"
+        local reviews_file="$3"
+        
+        if [[ -f "$reviews_file" ]]; then
+            jq -c '.[]' "$reviews_file" | while read -r review; do
+                agent=$(echo "$review" | jq -r '.agent')
+                action=$(echo "$review" | jq -r '.action')
+                comment=$(echo "$review" | jq -r '.comment')
+                
+                case "$action" in
+                    approve)
+                        gh pr review "$pr" --approve -b "[$agent review] $comment"
+                        ;;
+                    request-changes)
+                        gh pr review "$pr" --request-changes -b "[$agent review] $comment"
+                        ;;
+                    comment)
+                        gh pr review "$pr" --comment -b "[$agent review] $comment"
+                        ;;
+                esac
+                
+                echo "Added $agent $action review"
+            done
+        fi
+        ;;
+    
+    help|--help|-h)
+        cat << EOF
+p - Optimized gh wrapper for sub-agent workflows
+
+BASIC COMMANDS:
+  create-repo <name>              Create private repo
+  clone-framework                 Fetch framework files
+  
+TASK MANAGEMENT:
+  create-task <args>              Create single task
+  bulk-create-tasks <file> [proj] Create tasks from JSON
+  create-typed-task <type> <title> Template-based task
+  complete-task <issue> <pr>      Close task with PR
+  
+PULL REQUESTS:
+  create-pr <args>                Create PR
+  review-pr <pr> <msg> [agent]    Add review with agent tag
+  get-pr-reviews <pr> [format]    Get review status
+  check-reviews-complete <pr> [n] Check if n reviews done
+  bulk-review <pr> <file>         Add multiple reviews
+  
+AGENT COORDINATION:
+  set-context <key> <value>       Set shared context
+  get-context <key>               Get shared context
+  wait-for-context <key> [timeout] Wait for context
+  get-agent-tasks [agent] [state] List agent's tasks
+  
+PERFORMANCE:
+  cache-project <name>            Cache project ID
+  clear-cache                     Clear all caches
+
+FORMATS:
+  Tasks JSON: [{"title":"...", "body":"...", "labels":"..."}]
+  Reviews JSON: [{"agent":"...", "action":"...", "comment":"..."}]
+
+Optimized for multi-agent workflow execution.
+EOF
+        ;;
+    
+    *)
+        echo "Unknown command: $1"
+        echo "Run 'p help' for usage"
+        exit 1
+        ;;
+esac
