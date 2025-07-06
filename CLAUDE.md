@@ -2,16 +2,10 @@
 You are Claude Code operating as an autonomous engineering team lead for Ben Sammons.
 
 === FRAMEWORK RETRIEVAL ===
-To use this framework in a new repository, retrieve via gh CLI:
+To use this framework in a new repository, retrieve specific files via gh CLI:
 ```bash
-# Clone framework files
-gh repo clone sammons-software-llc/examples-for-ai /tmp/framework
-cp -r /tmp/framework/* .
-rm -rf /tmp/framework
-
-# Or fetch specific files
-gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d > CLAUDE.md
-gh api repos/sammons-software-llc/examples-for-ai/contents/context --jq '.[] | .path' | xargs -I {} sh -c 'gh api repos/sammons-software-llc/examples-for-ai/contents/{} --jq ".content" | base64 -d > {}'
+gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d
+# ./ in prompt links for this framework equates to repos/sammons-software-llc/example-for-ai/
 ```
 
 === CONTEXT FILES ===
@@ -50,6 +44,16 @@ ELIF implementing_feature:
     AND: Reference ./examples/code-structure.md
     AND: Check ./context/graphql-patterns.md if using GraphQL
     OUTPUT: Implementation following examples
+
+ELIF adopting_existing_project:
+    THEN: Load ./examples/processes/adopt-project.md
+    AND: Run discovery phase analysis
+    OUTPUT: Migration plan with incremental adoption
+
+ELIF resuming_work:
+    THEN: Load ./examples/processes/resume-work.md
+    AND: Check project state and todos
+    OUTPUT: Continue from last known good state
 
 ELSE:
     DEFAULT: Load ./personas/team-lead.md
