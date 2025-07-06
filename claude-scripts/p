@@ -261,44 +261,159 @@ case "${1:-help}" in
     
     help|--help|-h)
         cat << EOF
-p - Optimized gh wrapper for sub-agent workflows
+p - Project CLI for Multi-Agent GitHub Workflows
 
-ENVIRONMENT:
-  P_ECHO=1    Show commands before execution
-  P_DEBUG=1   Enable debug output
+SYNOPSIS:
+  p <command> [arguments...]
+  P_ECHO=1 p <command>     # Show gh commands before execution
+  P_DEBUG=1 p <command>    # Enable debug output
 
-BASIC COMMANDS:
-  create-repo <name>              Create private repo
-  clone-framework                 Fetch framework files
-  
-TASK MANAGEMENT:
-  create-task <args>              Create single task
-  bulk-create-tasks <file> [proj] Create tasks from JSON
-  create-typed-task <type> <title> Template-based task
-  complete-task <issue> <pr>      Close task with PR
-  
-PULL REQUESTS:
-  create-pr <args>                Create PR
-  review-pr <pr> <msg> [agent]    Add review with agent tag
-  get-pr-reviews <pr> [format]    Get review status
-  check-reviews-complete <pr> [n] Check if n reviews done
-  bulk-review <pr> <file>         Add multiple reviews
-  
-AGENT COORDINATION:
-  set-context <key> <value>       Set shared context
-  get-context <key>               Get shared context
-  wait-for-context <key> [timeout] Wait for context
-  get-agent-tasks [agent] [state] List agent's tasks
-  
-PERFORMANCE:
-  cache-project <name>            Cache project ID
-  clear-cache                     Clear all caches
+DESCRIPTION:
+  Lightweight wrapper around 'gh' CLI optimized for LLM sub-agents
+  executing Ben's 12-step development workflow. All repos created
+  under sammons-software-llc organization as private by default.
 
-FORMATS:
-  Tasks JSON: [{"title":"...", "body":"...", "labels":"..."}]
-  Reviews JSON: [{"agent":"...", "action":"...", "comment":"..."}]
+ENVIRONMENT VARIABLES:
+  P_ECHO=1     Show actual gh commands before execution (recommended)
+  P_DEBUG=1    Enable verbose debug output
+  P_CLI_CACHE  Override cache directory (default: ~/.p-cli-cache)
 
-Optimized for multi-agent workflow execution.
+REPOSITORY COMMANDS:
+  create-repo <name>
+    Create private repository under sammons-software-llc
+    Example: p create-repo note-taker-app
+    
+  clone-framework
+    Download CLAUDE.md and create framework directories
+    Creates: context/, archetypes/, personas/, examples/
+
+TASK MANAGEMENT COMMANDS:
+  create-task [options]
+    Create single GitHub issue with task label
+    Options: --title "..." --body "..." --label "..." --assignee <user>
+    Example: p create-task --title "Add auth" --label "feature,backend"
+    
+  bulk-create-tasks <file.json> [project-id]
+    Create multiple tasks from JSON file
+    Format: [{"title":"...", "body":"...", "labels":"task,feature"}]
+    Example: p bulk-create-tasks tasks.json 123
+    
+  create-typed-task <type> <title> [options]
+    Create task with predefined template
+    Types: feature, bug, security
+    Example: p create-typed-task feature "Add dark mode"
+    
+  complete-task <issue-num> <pr-num> [comment]
+    Close issue and link to PR
+    Example: p complete-task 123 456 "Implemented successfully"
+    
+  get-agent-tasks [agent] [state]
+    List tasks filtered by agent label and state
+    States: open, closed, all
+    Example: p get-agent-tasks architect open
+
+PULL REQUEST COMMANDS:
+  create-pr [options]
+    Create pull request (passes all args to gh pr create)
+    Example: p create-pr --title "[TASK-123] Add auth" --body "..."
+    
+  review-pr <pr-num> <comment> [agent-name]
+    Add review comment with optional agent identifier
+    Example: p review-pr 123 "LGTM" security-expert
+    
+  get-pr-reviews <pr-num> [format]
+    Get review status (format: text or json)
+    Example: p get-pr-reviews 123 json
+    
+  check-reviews-complete <pr-num> [required-count]
+    Check if required number of approvals met (default: 3)
+    Returns: "true" or "false (2/3 approved)"
+    Example: p check-reviews-complete 123 3
+    
+  bulk-review <pr-num> <reviews.json>
+    Add multiple reviews from JSON file
+    Format: [{"agent":"...", "action":"...", "comment":"..."}]
+    Actions: approve, request-changes, comment
+    Example: p bulk-review 123 reviews.json
+
+AGENT COORDINATION COMMANDS:
+  set-context <key> <value>
+    Store value in shared cache for agent coordination
+    Example: p set-context architecture-complete true
+    
+  get-context <key>
+    Retrieve value from shared cache
+    Example: p get-context architecture-complete
+    
+  wait-for-context <key> [timeout-seconds]
+    Block until context key exists (default: 300s)
+    Example: p wait-for-context all-tests-pass 600
+
+PERFORMANCE COMMANDS:
+  cache-project <name>
+    Cache project board ID for faster operations
+    Example: p cache-project "Note Taker App Development"
+    
+  clear-cache
+    Remove all cached data
+    Example: p clear-cache
+
+JSON FILE FORMATS:
+  Tasks (bulk-create-tasks):
+    [
+      {
+        "title": "Task title",
+        "body": "Task description (optional)",
+        "labels": "task,feature,backend (optional)"
+      }
+    ]
+    
+  Reviews (bulk-review):
+    [
+      {
+        "agent": "security-expert",
+        "action": "approve|request-changes|comment",
+        "comment": "Review message"
+      }
+    ]
+
+WORKFLOW EXAMPLES:
+  1. Initialize project (Team Lead Agent):
+     P_ECHO=1 p create-repo my-app
+     cd my-app
+     p clone-framework
+     p cache-project "My App"
+     
+  2. Create tasks (Architect Agent):
+     p bulk-create-tasks architecture-tasks.json
+     
+  3. Development (Developer Agent):
+     p set-context task-123 in-progress
+     # ... development ...
+     p create-pr --title "[TASK-123] Feature"
+     p set-context task-123 ready-for-review
+     
+  4. Review (Expert Agents):
+     p review-pr 456 "Security concern in auth.ts:45" security
+     p set-context security-review-456 changes-requested
+     
+  5. Merge (Team Lead Agent):
+     p check-reviews-complete 456 3
+     p complete-task 123 456
+
+EXIT CODES:
+  0  Success
+  1  Error (command failed or invalid arguments)
+
+DEBUGGING:
+  P_ECHO=1 p <command>     # See actual gh commands
+  gh auth status           # Check authentication
+  p clear-cache            # Fix cache issues
+
+SEE ALSO:
+  gh(1) - GitHub CLI that this tool wraps
+  README.md - Full documentation with more examples
+  docs/SIMULATION-RESULTS.md - Usage patterns from testing
 EOF
         ;;
     
