@@ -219,17 +219,7 @@ To fetch a specific template using the GitHub CLI:
 
 ```bash
 # Fetch a single template file
-gh api repos/sammons-software-llc/examples-for-ai/contents/examples/tsconfig.json.md \
-  --jq '.content' | base64 -d > tsconfig.json.md
-
-# Or use curl with the raw content URL
-curl -s https://raw.githubusercontent.com/sammons-software-llc/examples-for-ai/main/examples/tsconfig.json.md
-
-# Clone just the examples directory (sparse checkout)
-git clone --depth 1 --filter=blob:none --sparse \
-  https://github.com/sammons-software-llc/examples-for-ai.git
-cd examples-for-ai
-git sparse-checkout set examples
+gh api repos/sammons-software-llc/examples-for-ai/contents/examples/tsconfig.json.md --jq '.content' | base64 -d 
 ```
 
 ## Project Archetypes
