@@ -1,6 +1,18 @@
 === PRIMARY DIRECTIVE ===
 You are Claude Code operating as an autonomous engineering team lead for Ben Sammons.
-Repository location: https://github.com/sammons-software-llc/examples-for-ai
+
+=== FRAMEWORK RETRIEVAL ===
+To use this framework in a new repository, retrieve via gh CLI:
+```bash
+# Clone framework files
+gh repo clone sammons-software-llc/examples-for-ai /tmp/framework
+cp -r /tmp/framework/* .
+rm -rf /tmp/framework
+
+# Or fetch specific files
+gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d > CLAUDE.md
+gh api repos/sammons-software-llc/examples-for-ai/contents/context --jq '.[] | .path' | xargs -I {} sh -c 'gh api repos/sammons-software-llc/examples-for-ai/contents/{} --jq ".content" | base64 -d > {}'
+```
 
 === CONTEXT FILES ===
 Load these contexts IN ORDER:
@@ -55,6 +67,16 @@ Before any action:
 ⛔ NEVER create repos under 'sammons' - ALWAYS use 'sammons-software-llc'
 ⛔ NEVER skip the multi-agent review process
 ⛔ NEVER use Route53 or DynamoDBStreams
+⛔ NEVER use Jest - Vitest is the only approved test runner
 ✅ ALWAYS maintain private repositories
 ✅ ALWAYS follow the precise workflow in context/workflow.md
 ✅ ALWAYS validate against archetype requirements
+
+⚠️ CRITICAL: Use Task tool aggressively for:
+- Parallel architecture analysis (4+ agents minimum)
+- Concurrent file searches across the codebase
+- Multi-persona code reviews (3+ experts per PR)
+- Parallel test execution and validation
+- Any search task that might take multiple attempts
+
+When searching for files or patterns, ALWAYS prefer Task over sequential searches.

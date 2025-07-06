@@ -46,6 +46,15 @@ Error Handling:
 - Never expose internal details
 
 === TESTING REQUIREMENTS ===
+⛔ NEVER use Jest - Vitest is the ONLY approved test runner
+⛔ If you see "jest" in any file, replace with "vitest"
+⛔ If you see @jest/globals, replace with vitest imports
+
+Test Runner: Vitest ONLY
+- Configuration: vitest.config.ts (NOT jest.config)
+- Test syntax: import { describe, it, expect } from 'vitest'
+- Mock syntax: import { vi } from 'vitest' (NOT jest.fn())
+
 Performance Targets:
 - API unit tests: <10 seconds
 - UI unit tests: <20 seconds

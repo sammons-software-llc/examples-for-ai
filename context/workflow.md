@@ -64,3 +64,55 @@ Success metrics:
 ✅ ALWAYS use sub-agents for parallel work
 ✅ ALWAYS maintain persona consistency
 ✅ ALWAYS scope tasks for single-PR completion
+
+=== ADVANCED WORKFLOW (Complex Projects) ===
+
+For projects requiring deeper analysis, expand to 20-step process:
+
+PHASE 1: Architecture Deep Dive (Steps 1-5)
+→ Repository setup with branch protection
+→ 4 parallel expert agents: architect, security, designer, performance
+→ Dependency verification with breaking change analysis
+→ Detailed project board with acceptance criteria
+
+PHASE 2: Task Decomposition (Steps 6-8)
+→ Tasks < 8 hours each with DoD criteria
+→ Sprint planning in implementation waves
+→ Dependency mapping between tasks
+
+PHASE 3: TDD Implementation (Steps 9-13)
+→ Pre-development environment validation
+→ Write failing tests first (red phase)
+→ Implement minimum code to pass (green phase)
+→ Continuous validation every 10 minutes
+→ Performance benchmarks in tests
+
+PHASE 4: Quality Gates (Steps 14-16)
+→ Pre-PR validation checklist
+→ Security scan for vulnerabilities
+→ Performance validation < 500ms
+→ Automated PR checks via GitHub Actions
+
+PHASE 5: Multi-Expert Review (Steps 17-19)
+→ Each expert reviews specific domain
+→ Developer responds to each comment
+→ Load testing for performance validation
+
+PHASE 6: Deployment (Step 20)
+→ Squash merge with cleanup
+→ Update project board
+→ Trigger deployment pipeline
+→ Post-deployment health checks
+
+=== CHECKPOINTS ===
+□ CHECKPOINT 1: Architecture complete, N tasks created
+□ CHECKPOINT 2: Tests written and failing
+□ CHECKPOINT 3: Implementation complete, all checks pass
+□ CHECKPOINT 4: Reviews addressed, ready to merge
+
+Use advanced workflow when:
+- Project complexity > medium
+- Multiple integration points
+- Performance critical
+- Security sensitive
+- Team size > 3

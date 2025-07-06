@@ -277,3 +277,208 @@ Useful aliases for .gitconfig:
     # Show current branch
     current = rev-parse --abbrev-ref HEAD
 ```
+
+=== COMMON SCENARIOS ===
+
+### Scenario 1: Fixing a mistake in the last commit
+```bash
+# Made a typo in the last commit
+git add -A
+git commit --amend -m "[TASK-123]: Add user authentication (fixed typo)"
+
+# Forgot to include a file
+git add forgotten-file.ts
+git commit --amend --no-edit
+git push --force-with-lease
+```
+
+### Scenario 2: Working with stale branch
+```bash
+# Your branch is behind main
+git checkout main
+git pull
+git checkout feature/my-feature
+git rebase main
+
+# Resolve conflicts if any
+git add resolved-file.ts
+git rebase --continue
+
+# Update remote
+git push --force-with-lease
+```
+
+### Scenario 3: Cherry-picking specific commits
+```bash
+# Apply specific commit from another branch
+git cherry-pick abc123
+
+# Apply multiple commits
+git cherry-pick abc123..def456
+
+# Apply commit without committing
+git cherry-pick -n abc123
+```
+
+### Scenario 4: Recovering lost work
+```bash
+# Find lost commits
+git reflog
+
+# Recover specific commit
+git checkout -b recovery-branch abc123
+
+# View what was in a deleted branch
+git log --all --grep="search term"
+```
+
+### Scenario 5: Clean working directory
+```bash
+# Remove untracked files (dry run first)
+git clean -n
+git clean -f
+
+# Remove untracked files and directories
+git clean -fd
+
+# Reset all changes to match remote
+git fetch origin
+git reset --hard origin/main
+```
+
+=== TROUBLESHOOTING ===
+
+### Issue: Accidental commit to main
+```bash
+# Create branch from current state
+git branch feature/TASK-123
+
+# Reset main to previous commit
+git reset --hard HEAD~1
+
+# Switch to feature branch
+git checkout feature/TASK-123
+```
+
+### Issue: Large file accidentally committed
+```bash
+# Remove from history (requires force push)
+git filter-branch --tree-filter 'rm -f path/to/large/file' HEAD
+
+# Alternative with BFG
+bfg --delete-files large-file.zip
+git reflog expire --expire=now --all
+git gc --prune=now --aggressive
+```
+
+### Issue: Wrong commit message after push
+```bash
+# Only if you're the only one working on the branch
+git commit --amend -m "[TASK-123]: Correct commit message"
+git push --force-with-lease
+
+# If others are working on it, create a new commit
+git commit --allow-empty -m "[TASK-123]: Correction: Previous commit actually implements X not Y"
+```
+
+=== ADVANCED PATTERNS ===
+
+### Pattern: Bisect to find bug introduction
+```bash
+# Start bisect
+git bisect start
+
+# Mark current commit as bad
+git bisect bad
+
+# Mark known good commit
+git bisect good v1.0.0
+
+# Git will checkout commits to test
+# After testing each:
+git bisect good  # or
+git bisect bad
+
+# When done
+git bisect reset
+```
+
+### Pattern: Patch workflow
+```bash
+# Create patch from commits
+git format-patch -3  # Last 3 commits
+
+# Apply patch
+git apply --check 0001-patch.patch  # Dry run
+git apply 0001-patch.patch
+
+# Apply patch with commit info
+git am 0001-patch.patch
+```
+
+### Pattern: Submodule management
+```bash
+# Add submodule
+git submodule add https://github.com/org/repo.git lib/external
+
+# Update submodules
+git submodule update --init --recursive
+
+# Update to latest
+git submodule update --remote
+```
+
+=== COMMIT MESSAGE EXAMPLES ===
+
+### Feature Implementation
+```
+[TASK-200]: Implement real-time notifications
+
+Add WebSocket-based notification system for instant updates
+to users. Supports both in-app and email notifications with
+user preferences.
+
+- notification-service.ts: Core notification logic
+- websocket-handler.ts: Real-time delivery via Socket.io
+- notification-preferences.ts: User preference management
+- notification.test.ts: 95% test coverage
+- README.md: Updated with notification API docs
+```
+
+### Bug Fix
+```
+[TASK-201]: Fix race condition in payment processing
+
+Multiple simultaneous payment requests could result in 
+duplicate charges due to missing transaction locking.
+
+- payment-processor.ts: Add distributed lock via Redis
+- transaction-repository.ts: Implement optimistic locking
+- payment.test.ts: Add concurrent request tests
+```
+
+### Performance Improvement
+```
+[TASK-202]: Optimize dashboard query performance
+
+Dashboard load time reduced from 3s to 300ms by implementing
+query result caching and database index optimization.
+
+- dashboard-repository.ts: Add Redis caching layer
+- database/migrations/add-indexes.ts: Strategic indexes
+- dashboard.test.ts: Add performance benchmarks
+```
+
+### Security Update
+```
+[TASK-203]: Patch XSS vulnerability in comment system
+
+User-generated content was not properly sanitized before
+rendering, allowing potential script injection.
+
+- comment-handler.ts: Add DOMPurify sanitization
+- render-utils.ts: Escape HTML entities
+- security.test.ts: Add XSS prevention tests
+```
+
+Remember: Commit messages are documentation for future developers (including yourself). Be clear, concise, and focus on the "why" not just the "what".
