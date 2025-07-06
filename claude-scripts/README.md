@@ -112,6 +112,26 @@ p get-agent-tasks [agent] [state]
 # Example: p get-agent-tasks architect open
 ```
 
+### Project Board Management
+
+```bash
+# Create new project board with default columns
+p create-project <name>
+# Example: p create-project "Note Taker App"
+
+# List all projects in organization
+p list-projects
+
+# Add issue or PR to project board
+p add-to-project <type> <number> [project-id]
+# Example: p add-to-project issue 123
+# Example: p add-to-project pr 456
+
+# Move item to different column
+p move-to-column <item-id> <column> [project-id]
+# Example: p move-to-column PVTI_67890 Development
+```
+
 ### Performance Optimization
 
 ```bash
@@ -130,7 +150,7 @@ p clear-cache
 P_ECHO=1 p create-repo my-new-app
 cd my-new-app
 p clone-framework
-p cache-project "My New App"
+p create-project "My New App Development"
 ```
 
 ### 2. Task Creation (Architect Agent)

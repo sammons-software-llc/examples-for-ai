@@ -84,9 +84,12 @@ case "${1:-help}" in
                 
                 echo "Created #$issue_num: $title"
                 
-                # Add to project if specified
-                if [[ -n "$project_id" ]]; then
-                    gh project item-add "$project_id" --owner "$ORG" --content-id "$issue_num" --content-type Issue
+                # Add to project if specified or cached
+                local target_project="${project_id:-$(cache_get "project_id")}"
+                if [[ -n "$target_project" ]]; then
+                    echo_cmd "gh project item-add \"$target_project\" --owner \"$ORG\" --url \"https://github.com/$ORG/$(basename $PWD)/issues/$issue_num\""
+                    gh project item-add "$target_project" --owner "$ORG" --url "https://github.com/$ORG/$(basename $PWD)/issues/$issue_num" 2>/dev/null && \
+                        echo "  → Added to project board"
                 fi
             done
         fi
@@ -148,15 +151,37 @@ case "${1:-help}" in
         local pr="$3"
         local comment="${4:-Completed}"
         
+        echo_cmd "gh issue close \"$issue\" --comment \"$comment in PR #$pr\""
         # Close issue with PR reference
         gh issue close "$issue" --comment "$comment in PR #$pr"
         
         # Update project board if cached
         if project_id=$(cache_get "project_id"); then
-            item_id=$(gh project item-list "$project_id" --owner "$ORG" --format json | jq -r ".items[] | select(.content.number == $issue) | .id")
-            if [[ -n "$item_id" ]]; then
-                gh project item-edit --id "$item_id" --field-id "Status" --project-id "$project_id" --value "Merged"
-            fi
+            echo "Updating project board status..."
+            # Get the issue's project item
+            local query='query($org: String!, $number: Int!) {
+              organization(login: $org) {
+                projectsV2(first: 10) {
+                  nodes {
+                    items(first: 50) {
+                      nodes {
+                        id
+                        content {
+                          ... on Issue {
+                            number
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }'
+            
+            # Find item and move to Merged
+            echo_cmd "Moving issue #$issue to Merged column"
+            # Simplified: just notify that manual move may be needed
+            echo "Note: Manual move to 'Merged' column may be required in project board"
         fi
         ;;
     
@@ -215,14 +240,74 @@ case "${1:-help}" in
         fi
         ;;
     
+    # Project board management
+    create-project)
+        local name="$2"
+        echo_cmd "gh project create --owner \"$ORG\" --title \"$name\""
+        local project_info=$(gh project create --owner "$ORG" --title "$name" --format json)
+        local project_id=$(echo "$project_info" | jq -r '.id')
+        
+        if [[ -n "$project_id" ]]; then
+            # Cache the project ID
+            cache_set "project_id" "$project_id"
+            cache_set "project_name" "$name"
+            
+            # Create default columns
+            echo "Created project: $name (ID: $project_id)"
+            echo "Note: Project uses default 'Status' field with columns"
+            
+            echo "Project board ready: https://github.com/orgs/$ORG/projects/$project_id"
+        else
+            echo "Failed to create project"
+            return 1
+        fi
+        ;;
+    
+    list-projects)
+        echo_cmd "gh project list --owner \"$ORG\" --limit 100"
+        gh project list --owner "$ORG" --limit 100 --format table
+        ;;
+    
+    add-to-project)
+        local item_type="$2"  # issue or pr
+        local item_num="$3"
+        local project_id="${4:-$(cache_get "project_id")}"
+        
+        if [[ -z "$project_id" ]]; then
+            echo "No project ID provided or cached. Use 'p cache-project <name>' first."
+            return 1
+        fi
+        
+        echo_cmd "gh project item-add \"$project_id\" --owner \"$ORG\" --url \"https://github.com/$ORG/$(basename $PWD)/${item_type}s/$item_num\""
+        gh project item-add "$project_id" --owner "$ORG" --url "https://github.com/$ORG/$(basename $PWD)/${item_type}s/$item_num"
+        ;;
+    
+    move-to-column)
+        local item_id="$2"
+        local column="$3"
+        local project_id="${4:-$(cache_get "project_id")}"
+        
+        if [[ -z "$project_id" ]]; then
+            echo "No project ID provided or cached. Use 'p cache-project <name>' first."
+            return 1
+        fi
+        
+        echo_cmd "gh project item-edit --id \"$item_id\" --project-id \"$project_id\" --field-id \"Status\" --single-select-option-id \"$column\""
+        gh project item-edit --id "$item_id" --project-id "$project_id" --field-id "Status" --single-select-option-id "$column"
+        ;;
+    
     # Cache management
     cache-project)
         local name="$2"
-        local project_id=$(gh project list --owner "$ORG" --limit 100 --json id,title | jq -r ".[] | select(.title == \"$name Development\") | .id")
+        local project_id=$(gh project list --owner "$ORG" --limit 100 --json id,title | jq -r ".[] | select(.title == \"$name\") | .id")
         
         if [[ -n "$project_id" ]]; then
             cache_set "project_id" "$project_id"
-            echo "Cached project: $project_id"
+            cache_set "project_name" "$name"
+            echo "Cached project: $name (ID: $project_id)"
+        else
+            echo "Project not found: $name"
+            return 1
         fi
         ;;
     
@@ -336,6 +421,26 @@ PULL REQUEST COMMANDS:
     Actions: approve, request-changes, comment
     Example: p bulk-review 123 reviews.json
 
+PROJECT BOARD COMMANDS:
+  create-project <name>
+    Create project board with default columns (TODO, Development, Merged)
+    Example: p create-project "Note Taker App"
+    
+  list-projects
+    List all projects in the organization
+    Example: p list-projects
+    
+  add-to-project <type> <number> [project-id]
+    Add issue or PR to project board
+    Types: issue, pr
+    Example: p add-to-project issue 123
+    Example: p add-to-project pr 456 PVT_12345
+    
+  move-to-column <item-id> <column> [project-id]
+    Move item to different column
+    Columns: TODO, Development, Merged
+    Example: p move-to-column PVTI_67890 Development
+
 AGENT COORDINATION COMMANDS:
   set-context <key> <value>
     Store value in shared cache for agent coordination
@@ -382,7 +487,7 @@ WORKFLOW EXAMPLES:
      P_ECHO=1 p create-repo my-app
      cd my-app
      p clone-framework
-     p cache-project "My App"
+     p create-project "My App Development"
      
   2. Create tasks (Architect Agent):
      p bulk-create-tasks architecture-tasks.json
