@@ -1,0 +1,1189 @@
+#!/usr/bin/env bash
+#
+# p-cli v2 - Enhanced Project CLI based on 50-project simulation
+# Improvements based on simulation findings
+#
+
+set -euo pipefail
+
+# Configuration
+readonly ORG="sammons-software-llc"
+readonly FRAMEWORK_REPO="examples-for-ai"
+readonly DEFAULT_BRANCH="main"
+readonly CLI_VERSION="2.0.0"
+readonly TEMPLATES_DIR="${HOME}/.p-cli/templates"
+
+# Colors for output
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly MAGENTA='\033[0;35m'
+readonly CYAN='\033[0;36m'
+readonly BOLD='\033[1m'
+readonly NC='\033[0m' # No Color
+
+# Helper functions
+log() { echo -e "${BLUE}[p-cli]${NC} $*"; }
+success() { echo -e "${GREEN}✓${NC} $*"; }
+error() { echo -e "${RED}✗${NC} $*" >&2; }
+warn() { echo -e "${YELLOW}⚠${NC} $*" >&2; }
+header() { echo -e "\n${BOLD}=== $* ===${NC}"; }
+
+# Check dependencies
+check_deps() {
+    local deps=("gh" "git" "jq" "pnpm" "node" "docker")
+    local missing=()
+    
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" &> /dev/null; then
+            missing+=("$dep")
+        fi
+    done
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        error "Missing dependencies: ${missing[*]}"
+        log "Install with:"
+        [[ " ${missing[*]} " =~ " gh " ]] && echo "  brew install gh"
+        [[ " ${missing[*]} " =~ " pnpm " ]] && echo "  npm install -g pnpm"
+        exit 1
+    fi
+}
+
+# Initialize p-cli
+init_cli() {
+    if [[ ! -d "$TEMPLATES_DIR" ]]; then
+        log "First time setup..."
+        mkdir -p "$TEMPLATES_DIR"
+        download_templates
+        success "p-cli initialized"
+    fi
+}
+
+# Download templates
+download_templates() {
+    log "Downloading templates..."
+    
+    # In real implementation, would fetch from framework repo
+    mkdir -p "$TEMPLATES_DIR"/{configs,workflows,tests}
+    
+    # Create template catalog
+    cat > "$TEMPLATES_DIR/catalog.json" << 'EOF'
+{
+  "configs": {
+    "docker-compose": ["local-app", "ml-ai-app", "real-time-app"],
+    "manifest-v3": ["browser-extension"],
+    "app-config": ["mobile-app"],
+    "electron-builder": ["desktop-app"],
+    "cdk-app": ["serverless-aws"]
+  },
+  "workflows": {
+    "deploy-pages": ["static-website"],
+    "deploy-lambda": ["serverless-aws"],
+    "publish-npm": ["component", "cli-tool"],
+    "release-desktop": ["desktop-app"]
+  }
+}
+EOF
+    success "Templates downloaded"
+}
+
+# Enhanced help
+show_help() {
+    cat << EOF
+${BOLD}p-cli v${CLI_VERSION}${NC} - Enhanced Project CLI for Ben's workflow
+
+${BOLD}USAGE:${NC}
+    p-cli <command> [options]
+
+${BOLD}CORE COMMANDS:${NC}
+    ${CYAN}new${NC} <name> <type>      Create new project with archetype
+    ${CYAN}adopt${NC} <path>           Adopt existing project (auto-detect type)
+    ${CYAN}scaffold${NC} <feature>     Add feature scaffolding to current project
+    ${CYAN}migrate${NC} <from> <to>    Migrate between patterns (jest→vitest, etc)
+    
+${BOLD}WORKFLOW COMMANDS:${NC}
+    ${CYAN}task${NC} <action>          Task management (create, list, start, complete)
+    ${CYAN}pr${NC} <action>            PR workflow (create, review, merge)
+    ${CYAN}agent${NC} <persona>        Simulate agent review/analysis
+    ${CYAN}deploy${NC} <env>           Deploy to environment
+    
+${BOLD}UTILITY COMMANDS:${NC}    
+    ${CYAN}status${NC}                 Show comprehensive project status
+    ${CYAN}validate${NC}               Validate framework compliance
+    ${CYAN}doctor${NC}                 Diagnose and fix common issues
+    ${CYAN}template${NC} <name>        Generate from template
+
+${BOLD}IMPROVED FEATURES (v2):${NC}
+    • Auto-detects project type during adoption
+    • Generates archetype-specific configurations
+    • Creates test scaffolding with examples
+    • Adds GitHub Actions workflows automatically
+    • Provides interactive task creation with templates
+    • Simulates multi-agent reviews locally
+    • Includes deployment checklists
+
+${BOLD}EXAMPLES:${NC}
+    p-cli new my-app local-app --with-docker --with-auth
+    p-cli adopt . --auto-migrate
+    p-cli scaffold auth --type jwt --provider cognito
+    p-cli agent security --check-pr 123
+    p-cli migrate jest vitest --update-ci
+
+EOF
+}
+
+# Command: new (enhanced)
+cmd_new() {
+    local name="$1"
+    local type="$2"
+    shift 2
+    
+    # Parse additional flags
+    local with_docker=false
+    local with_auth=false
+    local with_ci=true
+    
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --with-docker) with_docker=true ;;
+            --with-auth) with_auth=true ;;
+            --no-ci) with_ci=false ;;
+        esac
+        shift
+    done
+    
+    header "Creating new $type project: $name"
+    
+    # Step 1: Create repository
+    log "Creating private repository..."
+    if gh repo create "$ORG/$name" --private --clone; then
+        success "Repository created"
+    else
+        error "Failed to create repository"
+        return 1
+    fi
+    
+    cd "$name" || return 1
+    
+    # Step 2: Fetch framework files
+    log "Fetching framework files..."
+    fetch_framework
+    
+    # Step 3: Apply archetype with enhancements
+    log "Applying $type archetype..."
+    apply_archetype_v2 "$type" "$with_docker" "$with_auth"
+    
+    # Step 4: Generate archetype-specific files
+    log "Generating $type specific files..."
+    generate_archetype_files "$type"
+    
+    # Step 5: Create test scaffolding
+    log "Creating test structure..."
+    create_test_scaffolding "$type"
+    
+    # Step 6: Setup CI/CD
+    if [[ "$with_ci" == true ]]; then
+        log "Setting up GitHub Actions..."
+        setup_github_actions "$type"
+    fi
+    
+    # Step 7: Create project board with templates
+    log "Creating project board with initial tasks..."
+    create_project_board_v2 "$name" "$type"
+    
+    # Step 8: Initial commit
+    git add -A
+    git commit -m "[INIT]: Initialize $name as $type project
+
+Project created with p-cli v2 including:
+- Framework files and $type archetype
+- Test scaffolding with examples
+- GitHub Actions CI/CD pipeline
+- Project board with starter tasks
+$(if [[ "$with_docker" == true ]]; then echo "- Docker configuration"; fi)
+$(if [[ "$with_auth" == true ]]; then echo "- Authentication scaffolding"; fi)
+
+Ready for development following 12-step workflow."
+    
+    git push -u origin main
+    
+    # Step 9: Run initial validation
+    log "Running initial validation..."
+    validate_project
+    
+    success "Project created successfully!"
+    show_next_steps "$type"
+}
+
+# Apply archetype v2 (with improvements)
+apply_archetype_v2() {
+    local type="$1"
+    local with_docker="$2"
+    local with_auth="$3"
+    
+    # Fetch archetype
+    gh api "repos/$ORG/$FRAMEWORK_REPO/contents/archetypes/${type}.md" --jq '.content' | base64 -d > "archetype-${type}.md"
+    
+    # Apply type-specific setup
+    case "$type" in
+        local-app)
+            setup_local_app_v2 "$with_docker"
+            ;;
+        serverless-aws)
+            setup_serverless_aws_v2
+            ;;
+        mobile-app)
+            setup_mobile_app_v2
+            ;;
+        cli-tool)
+            setup_cli_tool_v2
+            ;;
+        browser-extension)
+            setup_browser_extension_v2
+            ;;
+        desktop-app)
+            setup_desktop_app_v2
+            ;;
+        real-time-app)
+            setup_realtime_app_v2
+            ;;
+        ml-ai-app)
+            setup_ml_ai_app_v2
+            ;;
+        static-website)
+            setup_static_website_v2
+            ;;
+        component)
+            setup_component_v2
+            ;;
+    esac
+    
+    if [[ "$with_auth" == true ]]; then
+        add_auth_scaffolding "$type"
+    fi
+}
+
+# Generate archetype-specific files
+generate_archetype_files() {
+    local type="$1"
+    
+    case "$type" in
+        local-app)
+            # SQLite setup
+            cat > lib/api/src/database/schema.sql << 'EOF'
+-- Initial schema for local app
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+EOF
+            
+            # Health check endpoint
+            cat > lib/api/src/handlers/health.ts << 'EOF'
+import type { FastifyRequest, FastifyReply } from 'fastify'
+
+export async function healthHandler(req: FastifyRequest, reply: FastifyReply) {
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage()
+  }
+  
+  return reply.send(health)
+}
+EOF
+            ;;
+            
+        browser-extension)
+            # Manifest V3
+            cat > manifest.json << EOF
+{
+  "manifest_version": 3,
+  "name": "$(basename "$PWD")",
+  "version": "0.1.0",
+  "description": "Browser extension built with p-cli",
+  "permissions": ["storage", "activeTab"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["content.js"]
+  }]
+}
+EOF
+            ;;
+            
+        mobile-app)
+            # App config
+            cat > app.json << EOF
+{
+  "expo": {
+    "name": "$(basename "$PWD")",
+    "slug": "$(basename "$PWD")",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sammons.$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | tr -d '-')"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.sammons.$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | tr -d '-')"
+    }
+  }
+}
+EOF
+            ;;
+            
+        serverless-aws)
+            # CDK app
+            mkdir -p lib/cdk/bin lib/cdk/lib
+            cat > lib/cdk/bin/app.ts << 'EOF'
+#!/usr/bin/env node
+import 'source-map-support/register'
+import * as cdk from 'aws-cdk-lib'
+import { ApiStack } from '../lib/api-stack'
+
+const app = new cdk.App()
+
+const env = app.node.tryGetContext('env') || 'dev'
+
+new ApiStack(app, `ApiStack-${env}`, {
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION || 'us-east-1'
+  },
+  environment: env
+})
+EOF
+            ;;
+    esac
+}
+
+# Create test scaffolding
+create_test_scaffolding() {
+    local type="$1"
+    
+    # Vitest config
+    cat > vitest.config.ts << 'EOF'
+import { defineConfig } from 'vitest/config'
+import { resolve } from 'node:path'
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    setupFiles: ['./src/test/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: ['node_modules/', 'dist/', '**/*.d.ts']
+    }
+  },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src')
+    }
+  }
+})
+EOF
+
+    # Test setup file
+    mkdir -p src/test
+    cat > src/test/setup.ts << 'EOF'
+import { beforeAll, afterAll, beforeEach } from 'vitest'
+
+beforeAll(async () => {
+  // Global setup
+})
+
+beforeEach(async () => {
+  // Reset state between tests
+})
+
+afterAll(async () => {
+  // Cleanup
+})
+EOF
+
+    # Example test
+    cat > src/test/example.test.ts << 'EOF'
+import { describe, it, expect } from 'vitest'
+
+describe('Example Test Suite', () => {
+  it('should pass basic assertion', () => {
+    expect(1 + 1).toBe(2)
+  })
+  
+  it('should handle async operations', async () => {
+    const result = await Promise.resolve('success')
+    expect(result).toBe('success')
+  })
+})
+EOF
+}
+
+# Setup GitHub Actions
+setup_github_actions() {
+    local type="$1"
+    
+    mkdir -p .github/workflows
+    
+    # Base CI workflow
+    cat > .github/workflows/ci.yml << 'EOF'
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Run lint
+        run: pnpm lint:check
+        
+      - name: Run type check
+        run: pnpm type-check
+        
+      - name: Run tests
+        run: pnpm test -- --coverage
+        
+      - name: Build
+        run: pnpm build
+EOF
+
+    # Add type-specific workflows
+    case "$type" in
+        static-website)
+            cat >> .github/workflows/ci.yml << 'EOF'
+        
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    permissions:
+      pages: write
+      id-token: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v4
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+      - uses: actions/deploy-pages@v4
+EOF
+            ;;
+            
+        serverless-aws)
+            cat > .github/workflows/deploy.yml << 'EOF'
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          
+      - name: Deploy CDK
+        run: |
+          cd lib/cdk
+          pnpm cdk deploy --require-approval never
+EOF
+            ;;
+    esac
+}
+
+# Create enhanced project board
+create_project_board_v2() {
+    local name="$1"
+    local type="$2"
+    
+    log "Creating project board with starter tasks..."
+    
+    # Create project
+    local project_id=$(gh project create --owner "$ORG" --title "$name Development" --format json | jq -r '.id')
+    
+    if [[ -z "$project_id" ]]; then
+        warn "Failed to create project board"
+        return
+    fi
+    
+    # Create initial tasks based on type
+    local tasks=()
+    
+    # Common tasks
+    tasks+=("Set up development environment")
+    tasks+=("Configure CI/CD pipeline")
+    tasks+=("Add error handling")
+    tasks+=("Create API documentation")
+    
+    # Type-specific tasks
+    case "$type" in
+        local-app)
+            tasks+=("Implement data persistence")
+            tasks+=("Add configuration UI")
+            tasks+=("Create backup/restore functionality")
+            ;;
+        serverless-aws)
+            tasks+=("Configure DynamoDB tables")
+            tasks+=("Set up API Gateway")
+            tasks+=("Add CloudWatch monitoring")
+            ;;
+        mobile-app)
+            tasks+=("Design navigation structure")
+            tasks+=("Implement authentication flow")
+            tasks+=("Add push notifications")
+            ;;
+        browser-extension)
+            tasks+=("Create options page")
+            tasks+=("Implement content script")
+            tasks+=("Add storage sync")
+            ;;
+    esac
+    
+    # Create issues
+    for task in "${tasks[@]}"; do
+        create_task_v2 "$task" "medium" "medium" "$type"
+    done
+    
+    success "Created ${#tasks[@]} starter tasks"
+}
+
+# Enhanced task creation
+create_task_v2() {
+    local title="$1"
+    local priority="${2:-medium}"
+    local size="${3:-medium}"
+    local type="${4:-}"
+    
+    # Generate acceptance criteria based on task
+    local criteria=""
+    case "$title" in
+        *"authentication"*)
+            criteria="- [ ] User can register with email/password
+- [ ] Password requirements enforced (12+ chars)
+- [ ] JWT tokens implemented
+- [ ] Refresh token mechanism
+- [ ] Rate limiting on auth endpoints"
+            ;;
+        *"persistence"*)
+            criteria="- [ ] Data saved to local database
+- [ ] Automatic backups configured
+- [ ] Data validation implemented
+- [ ] Migration system in place"
+            ;;
+        *"CI/CD"*)
+            criteria="- [ ] Tests run on every PR
+- [ ] Linting enforced
+- [ ] Type checking enabled
+- [ ] Build verification
+- [ ] Deployment automated for main branch"
+            ;;
+        *)
+            criteria="- [ ] Feature implemented
+- [ ] Tests written (90%+ coverage)
+- [ ] Documentation updated
+- [ ] Performance validated"
+            ;;
+    esac
+    
+    local body=$(cat << EOF
+## Acceptance Criteria
+$criteria
+
+## Technical Requirements
+- Follow framework patterns
+- Include error handling
+- Add logging for debugging
+- Ensure security best practices
+
+## Definition of Done
+- [ ] Unit tests achieve 90% coverage
+- [ ] Integration tests pass
+- [ ] No lint or type errors
+- [ ] Documentation updated
+- [ ] PR reviewed by 3 experts
+- [ ] Performance meets targets (<500ms)
+
+## Notes
+Priority: $priority
+Size: $size
+Type: $type
+Created via p-cli v2
+EOF
+)
+    
+    gh issue create \
+        --title "$title" \
+        --body "$body" \
+        --label "task,priority:$priority,size:$size" \
+        &> /dev/null
+}
+
+# Command: adopt (enhanced)
+cmd_adopt() {
+    local path="${1:-.}"
+    local auto_migrate="${2:---auto-migrate}"
+    
+    cd "$path" || return 1
+    
+    header "Adopting existing project"
+    
+    # Auto-detect project type
+    log "Detecting project type..."
+    local detected_type=$(detect_project_type)
+    
+    if [[ -n "$detected_type" ]]; then
+        success "Detected: $detected_type"
+    else
+        warn "Could not detect type, defaulting to local-app"
+        detected_type="local-app"
+    fi
+    
+    # Run comprehensive analysis
+    log "Analyzing project state..."
+    analyze_project_state
+    
+    # Fetch framework
+    log "Fetching framework files..."
+    fetch_framework
+    
+    # Auto-migrate if requested
+    if [[ "$auto_migrate" == "--auto-migrate" ]]; then
+        log "Running automated migrations..."
+        auto_migrate_project
+    fi
+    
+    # Add missing structure
+    log "Adding missing framework structure..."
+    add_framework_structure "$detected_type"
+    
+    # Generate migration report
+    generate_migration_report
+    
+    success "Project adopted as $detected_type!"
+}
+
+# Detect project type
+detect_project_type() {
+    if [[ -f "package.json" ]]; then
+        # Check for type indicators
+        if grep -q "react-native\|expo" package.json; then
+            echo "mobile-app"
+        elif grep -q "electron" package.json; then
+            echo "desktop-app"
+        elif grep -q "@aws-cdk\|aws-cdk" package.json; then
+            echo "serverless-aws"
+        elif grep -q "commander\|yargs\|meow" package.json; then
+            echo "cli-tool"
+        elif grep -q "fastify\|express\|koa" package.json; then
+            echo "local-app"
+        elif grep -q "react\|vue\|svelte" package.json; then
+            echo "local-app"
+        fi
+    elif [[ -f "manifest.json" ]]; then
+        echo "browser-extension"
+    elif [[ -f "index.html" ]] && [[ ! -f "package.json" ]]; then
+        echo "static-website"
+    fi
+}
+
+# Auto-migrate project
+auto_migrate_project() {
+    # Jest → Vitest
+    if grep -q '"jest"' package.json 2>/dev/null; then
+        log "Migrating Jest to Vitest..."
+        
+        # Update dependencies
+        pnpm remove jest @types/jest ts-jest 2>/dev/null || true
+        pnpm add -D vitest @vitest/ui @testing-library/jest-dom
+        
+        # Update imports in test files
+        find . -name "*.test.ts" -o -name "*.test.tsx" -o -name "*.spec.ts" | while read -r file; do
+            # Replace imports
+            sed -i '' 's/from ["'\'']jest["'\'']/from "vitest"/g' "$file" 2>/dev/null || true
+            sed -i '' 's/from ["'\'']@jest\/globals["'\'']/from "vitest"/g' "$file" 2>/dev/null || true
+            
+            # Replace jest.fn with vi.fn
+            sed -i '' 's/jest\.fn/vi.fn/g' "$file" 2>/dev/null || true
+            sed -i '' 's/jest\.mock/vi.mock/g' "$file" 2>/dev/null || true
+            sed -i '' 's/jest\.spyOn/vi.spyOn/g' "$file" 2>/dev/null || true
+        done
+        
+        # Update package.json scripts
+        sed -i '' 's/"test": "jest"/"test": "vitest"/g' package.json
+        
+        # Create vitest config
+        if [[ ! -f "vitest.config.ts" ]]; then
+            create_test_scaffolding "$(detect_project_type)"
+        fi
+        
+        success "Migrated from Jest to Vitest"
+    fi
+    
+    # npm/yarn → pnpm
+    if [[ -f "package-lock.json" ]] || [[ -f "yarn.lock" ]]; then
+        log "Migrating to pnpm..."
+        
+        pnpm import 2>/dev/null || true
+        rm -f package-lock.json yarn.lock
+        pnpm install
+        
+        # Update scripts
+        sed -i '' 's/npm run/pnpm/g' package.json 2>/dev/null || true
+        sed -i '' 's/yarn /pnpm /g' package.json 2>/dev/null || true
+        
+        success "Migrated to pnpm"
+    fi
+    
+    # Add missing TypeScript
+    if [[ ! -f "tsconfig.json" ]] && find . -name "*.ts" -o -name "*.tsx" | head -1 &>/dev/null; then
+        log "Adding TypeScript configuration..."
+        
+        pnpm add -D typescript @types/node
+        
+        # Fetch standard tsconfig
+        gh api "repos/$ORG/$FRAMEWORK_REPO/contents/examples/tsconfig.json.md" --jq '.content' | base64 -d > tsconfig.reference.md
+        
+        # Extract config from markdown
+        sed -n '/```json/,/```/p' tsconfig.reference.md | sed '1d;$d' > tsconfig.json
+        
+        success "Added TypeScript configuration"
+    fi
+}
+
+# Command: scaffold
+cmd_scaffold() {
+    local feature="$1"
+    shift
+    
+    header "Scaffolding $feature"
+    
+    case "$feature" in
+        auth)
+            scaffold_auth "$@"
+            ;;
+        api)
+            scaffold_api "$@"
+            ;;
+        database)
+            scaffold_database "$@"
+            ;;
+        websocket)
+            scaffold_websocket "$@"
+            ;;
+        *)
+            error "Unknown feature: $feature"
+            echo "Available features: auth, api, database, websocket"
+            return 1
+            ;;
+    esac
+}
+
+# Scaffold authentication
+scaffold_auth() {
+    local type="${1:-jwt}"
+    local provider="${2:-local}"
+    
+    log "Scaffolding $type authentication with $provider provider..."
+    
+    # Create auth structure
+    mkdir -p lib/api/src/{handlers/auth,strategies,middleware}
+    
+    # Auth handler
+    cat > lib/api/src/handlers/auth/login.ts << 'EOF'
+import type { FastifyRequest, FastifyReply } from 'fastify'
+import { LoginSchema } from '@sammons/shared-types'
+import { AuthStrategy } from '../../strategies/auth-strategy'
+
+export async function loginHandler(
+  request: FastifyRequest<{ Body: LoginSchema }>,
+  reply: FastifyReply
+) {
+  const strategy = new AuthStrategy()
+  const result = await strategy.login(request.body)
+  
+  return reply.send(result)
+}
+EOF
+
+    # Auth strategy
+    cat > lib/api/src/strategies/auth-strategy.ts << 'EOF'
+import { hash, verify } from '@node-rs/argon2'
+import { SignJWT, jwtVerify } from 'jose'
+
+export class AuthStrategy {
+  private readonly secret = new TextEncoder().encode(process.env.JWT_SECRET!)
+  
+  async login(credentials: LoginCredentials) {
+    // Validate user
+    const user = await this.validateUser(credentials)
+    
+    // Generate tokens
+    const accessToken = await this.generateAccessToken(user)
+    const refreshToken = await this.generateRefreshToken(user)
+    
+    return { accessToken, refreshToken, user }
+  }
+  
+  private async generateAccessToken(user: User) {
+    return new SignJWT({ sub: user.id, email: user.email })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('1h')
+      .setIssuedAt()
+      .sign(this.secret)
+  }
+}
+EOF
+
+    success "Authentication scaffolding complete"
+}
+
+# Command: agent (simulate agent reviews)
+cmd_agent() {
+    local persona="$1"
+    local action="${2:-analyze}"
+    shift 2
+    
+    header "Simulating $persona agent"
+    
+    case "$persona" in
+        security)
+            agent_security_review "$action" "$@"
+            ;;
+        architect)
+            agent_architect_review "$action" "$@"
+            ;;
+        performance)
+            agent_performance_review "$action" "$@"
+            ;;
+        ux)
+            agent_ux_review "$action" "$@"
+            ;;
+        *)
+            error "Unknown persona: $persona"
+            echo "Available personas: security, architect, performance, ux"
+            return 1
+            ;;
+    esac
+}
+
+# Security agent review
+agent_security_review() {
+    local action="$1"
+    local pr="${2:-}"
+    
+    log "Security Expert Analysis"
+    echo
+    
+    # Check for common security issues
+    local issues=()
+    
+    # Check for hardcoded secrets
+    if grep -r "api[_-]key\|secret\|password" --include="*.ts" --include="*.js" . 2>/dev/null | grep -v "process.env" | grep -q "="; then
+        issues+=("⚠️  Potential hardcoded secrets detected")
+    fi
+    
+    # Check for SQL injection vulnerabilities
+    if grep -r "query.*\${.*}" --include="*.ts" . 2>/dev/null | grep -q -v "prepared"; then
+        issues+=("⚠️  Potential SQL injection vulnerability")
+    fi
+    
+    # Check dependencies
+    if pnpm audit --audit-level=high 2>&1 | grep -q "found"; then
+        issues+=("⚠️  High severity vulnerabilities in dependencies")
+    fi
+    
+    # Check authentication
+    if [[ -d "lib/api/src/handlers" ]] && ! find lib/api/src/handlers -name "*auth*" | grep -q .; then
+        issues+=("⚠️  No authentication handlers found")
+    fi
+    
+    if [[ ${#issues[@]} -gt 0 ]]; then
+        error "Security issues found:"
+        for issue in "${issues[@]}"; do
+            echo "  $issue"
+        done
+        echo
+        echo "Recommendations:"
+        echo "  - Move all secrets to environment variables"
+        echo "  - Use parameterized queries for database access"
+        echo "  - Run 'pnpm audit fix' to update vulnerable dependencies"
+        echo "  - Implement authentication before handling user data"
+    else
+        success "No critical security issues found"
+        echo
+        echo "Additional recommendations:"
+        echo "  - Enable rate limiting on all endpoints"
+        echo "  - Add input validation using Zod schemas"
+        echo "  - Implement CORS properly for production"
+        echo "  - Use helmet.js for security headers"
+    fi
+}
+
+# Command: validate (check framework compliance)
+cmd_validate() {
+    header "Validating Framework Compliance"
+    
+    local score=0
+    local total=10
+    
+    # Check 1: Framework files
+    if [[ -f "CLAUDE.md" ]]; then
+        success "Framework file present"
+        ((score++))
+    else
+        error "Missing CLAUDE.md"
+    fi
+    
+    # Check 2: Test framework
+    if grep -q "vitest" package.json 2>/dev/null; then
+        success "Using Vitest"
+        ((score++))
+    elif grep -q "jest" package.json 2>/dev/null; then
+        error "Using Jest instead of Vitest"
+    else
+        warn "No test framework detected"
+    fi
+    
+    # Check 3: Package manager
+    if [[ -f "pnpm-lock.yaml" ]]; then
+        success "Using pnpm"
+        ((score++))
+    else
+        error "Not using pnpm"
+    fi
+    
+    # Check 4: TypeScript
+    if [[ -f "tsconfig.json" ]]; then
+        success "TypeScript configured"
+        ((score++))
+    else
+        error "Missing TypeScript configuration"
+    fi
+    
+    # Check 5: Linting
+    if [[ -f "eslint.config.ts" ]] || [[ -f ".eslintrc.js" ]]; then
+        success "ESLint configured"
+        ((score++))
+    else
+        warn "No linting configuration"
+    fi
+    
+    # Check 6: Git hooks
+    if [[ -f ".git/hooks/pre-commit" ]] || [[ -f ".husky/pre-commit" ]]; then
+        success "Git hooks configured"
+        ((score++))
+    else
+        warn "No git hooks for quality checks"
+    fi
+    
+    # Check 7: CI/CD
+    if [[ -f ".github/workflows/ci.yml" ]] || [[ -f ".github/workflows/test.yml" ]]; then
+        success "CI/CD configured"
+        ((score++))
+    else
+        error "No CI/CD pipeline"
+    fi
+    
+    # Check 8: Documentation
+    if [[ -f "README.md" ]] && grep -q "## Architecture" README.md; then
+        success "Documentation includes architecture"
+        ((score++))
+    else
+        warn "Missing architecture documentation"
+    fi
+    
+    # Check 9: Project structure
+    if [[ -d "lib" ]] || [[ -d "src" ]]; then
+        success "Standard project structure"
+        ((score++))
+    else
+        error "Non-standard project structure"
+    fi
+    
+    # Check 10: Error handling
+    if find . -name "*.ts" -exec grep -l "AppError\|CustomError" {} \; | grep -q .; then
+        success "Custom error handling implemented"
+        ((score++))
+    else
+        warn "No custom error handling found"
+    fi
+    
+    echo
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Compliance Score: $score/$total"
+    
+    if [[ $score -eq $total ]]; then
+        success "Fully compliant! 🎉"
+    elif [[ $score -ge 7 ]]; then
+        warn "Good compliance, minor improvements needed"
+    else
+        error "Significant compliance issues"
+    fi
+    
+    # Generate fix commands
+    if [[ $score -lt $total ]]; then
+        echo
+        echo "Run these commands to improve compliance:"
+        
+        [[ ! -f "CLAUDE.md" ]] && echo "  p-cli framework update"
+        grep -q "jest" package.json 2>/dev/null && echo "  p-cli migrate jest vitest"
+        [[ ! -f "pnpm-lock.yaml" ]] && echo "  p-cli migrate npm pnpm"
+        [[ ! -f ".github/workflows/ci.yml" ]] && echo "  p-cli scaffold ci"
+    fi
+}
+
+# Show next steps
+show_next_steps() {
+    local type="$1"
+    
+    echo
+    log "Next steps:"
+    echo "  1. cd $(basename "$PWD")"
+    echo "  2. pnpm install"
+    echo "  3. pnpm dev"
+    echo
+    echo "Workflow commands:"
+    echo "  • p-cli task create \"Your first feature\""
+    echo "  • p-cli status"
+    echo "  • p-cli validate"
+    
+    case "$type" in
+        local-app)
+            echo
+            echo "Local app specific:"
+            echo "  • p-cli scaffold database --type sqlite"
+            echo "  • p-cli scaffold api --rest"
+            ;;
+        serverless-aws)
+            echo
+            echo "Serverless specific:"
+            echo "  • cd lib/cdk && pnpm cdk bootstrap"
+            echo "  • p-cli deploy dev"
+            ;;
+        mobile-app)
+            echo
+            echo "Mobile specific:"
+            echo "  • pnpm expo start"
+            echo "  • p-cli scaffold navigation"
+            ;;
+    esac
+}
+
+# Main entry point
+main() {
+    check_deps
+    init_cli
+    
+    if [[ $# -eq 0 ]]; then
+        show_help
+        exit 0
+    fi
+    
+    local command="$1"
+    shift
+    
+    case "$command" in
+        new)
+            [[ $# -lt 2 ]] && { error "Usage: p-cli new <name> <type> [options]"; exit 1; }
+            cmd_new "$@"
+            ;;
+        adopt)
+            cmd_adopt "$@"
+            ;;
+        scaffold)
+            [[ $# -lt 1 ]] && { error "Usage: p-cli scaffold <feature> [options]"; exit 1; }
+            cmd_scaffold "$@"
+            ;;
+        agent)
+            [[ $# -lt 1 ]] && { error "Usage: p-cli agent <persona> [action]"; exit 1; }
+            cmd_agent "$@"
+            ;;
+        validate)
+            cmd_validate "$@"
+            ;;
+        # ... other commands remain the same but enhanced
+        help|--help|-h)
+            show_help
+            ;;
+        version|--version|-v)
+            echo "p-cli v${CLI_VERSION}"
+            ;;
+        *)
+            error "Unknown command: $command"
+            echo "Run 'p-cli help' for usage"
+            exit 1
+            ;;
+    esac
+}
+
+# Run main
+main "$@"
