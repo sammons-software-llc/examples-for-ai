@@ -29,9 +29,17 @@ echo_cmd() {
 cache_get() {
     local key="$1"
     local file="$CACHE_DIR/$key"
-    if [[ -f "$file" ]] && [[ $(( $(date +%s) - $(stat -f %m "$file" 2>/dev/null || stat -c %Y "$file" 2>/dev/null) )) -lt $CACHE_TTL ]]; then
-        cat "$file"
-        return 0
+    if [[ -f "$file" ]]; then
+        local file_mtime
+        if [[ "$(uname)" == "Darwin" ]]; then
+            file_mtime=$(stat -f %m "$file" 2>/dev/null || echo 0)
+        else
+            file_mtime=$(stat -c %Y "$file" 2>/dev/null || echo 0)
+        fi
+        if [[ $(( $(date +%s) - file_mtime )) -lt $CACHE_TTL ]]; then
+            cat "$file"
+            return 0
+        fi
     fi
     return 1
 }
@@ -67,8 +75,8 @@ case "${1:-help}" in
     
     bulk-create-tasks)
         # Read JSON file with task definitions
-        local file="$2"
-        local project_id="${3:-}"
+        file="$2"
+        project_id="${3:-}"
         
         if [[ -f "$file" ]]; then
             jq -c '.[]' "$file" | while read -r task; do
@@ -87,10 +95,10 @@ case "${1:-help}" in
                 echo "Created #$issue_num: $title"
                 
                 # Add to project if specified or cached
-                local target_project="${project_id:-$(cache_get "project_id")}"
+                target_project="${project_id:-$(cache_get "project_id")}"
                 if [[ -n "$target_project" ]]; then
-                    echo_cmd "gh project item-add \"$target_project\" --owner \"$ORG\" --url \"https://github.com/$ORG/$(basename $PWD)/issues/$issue_num\""
-                    gh project item-add "$target_project" --owner "$ORG" --url "https://github.com/$ORG/$(basename $PWD)/issues/$issue_num" 2>/dev/null && \
+                    echo_cmd "gh project item-add \"$target_project\" --owner \"$ORG\" --url \"https://github.com/$ORG/$(basename "$PWD")/issues/$issue_num\""
+                    gh project item-add "$target_project" --owner "$ORG" --url "https://github.com/$ORG/$(basename "$PWD")/issues/$issue_num" 2>/dev/null && \
                         echo "  → Added to project board"
                 fi
             done
@@ -99,8 +107,8 @@ case "${1:-help}" in
     
     create-typed-task)
         # Template-based task creation
-        local type="$2"
-        local title="$3"
+        type="$2"
+        title="$3"
         shift 3
         
         case "$type" in
@@ -128,8 +136,8 @@ case "${1:-help}" in
         ;;
     
     get-pr-reviews)
-        local pr="$2"
-        local format="${3:-text}"
+        pr="$2"
+        format="${3:-text}"
         
         if [[ "$format" == "json" ]]; then
             gh pr view "$pr" --json reviews --jq '.reviews'
@@ -139,9 +147,9 @@ case "${1:-help}" in
         ;;
     
     review-pr)
-        local pr="$2"
-        local comment="$3"
-        local author="${4:-agent}"
+        pr="$2"
+        comment="$3"
+        author="${4:-agent}"
         
         # Add author prefix for tracking
         gh pr review "$pr" --comment -b "[$author review] $comment"
@@ -149,9 +157,9 @@ case "${1:-help}" in
     
     # Workflow shortcuts
     complete-task)
-        local issue="$2"
-        local pr="$3"
-        local comment="${4:-Completed}"
+        issue="$2"
+        pr="$3"
+        comment="${4:-Completed}"
         
         echo_cmd "gh issue close \"$issue\" --comment \"$comment in PR #$pr\""
         # Close issue with PR reference
@@ -161,7 +169,7 @@ case "${1:-help}" in
         if project_id=$(cache_get "project_id"); then
             echo "Updating project board status..."
             # Get the issue's project item
-            local query='query($org: String!, $number: Int!) {
+            query='query($org: String!, $number: Int!) {
               organization(login: $org) {
                 projectsV2(first: 10) {
                   nodes {
@@ -189,35 +197,35 @@ case "${1:-help}" in
     
     # Agent coordination
     set-context)
-        local key="$2"
-        local value="$3"
+        key="$2"
+        value="$3"
         cache_set "context_$key" "$value"
         ;;
     
     get-context)
-        local key="$2"
+        key="$2"
         cache_get "context_$key" || echo ""
         ;;
     
     wait-for-context)
-        local key="$2"
-        local timeout="${3:-300}"
-        local start=$(date +%s)
+        key="$2"
+        timeout="${3:-300}"
+        start=$(date +%s)
         
         while [[ $(($(date +%s) - start)) -lt $timeout ]]; do
             if value=$(cache_get "context_$key"); then
                 echo "$value"
-                return 0
+                exit 0
             fi
             sleep 5
         done
         
-        return 1
+        exit 1
         ;;
     
     get-agent-tasks)
-        local agent="${2:-}"
-        local status="${3:-open}"
+        agent="${2:-}"
+        status="${3:-open}"
         
         if [[ -n "$agent" ]]; then
             gh issue list --label "task,$agent" --state "$status"
@@ -228,26 +236,26 @@ case "${1:-help}" in
     
     # Status aggregation
     check-reviews-complete)
-        local pr="$2"
-        local required="${3:-3}"  # Default 3 expert reviews
+        pr="$2"
+        required="${3:-3}"  # Default 3 expert reviews
         
-        local approved=$(gh pr view "$pr" --json reviews --jq '[.reviews[] | select(.state == "APPROVED")] | length')
+        approved=$(gh pr view "$pr" --json reviews --jq '[.reviews[] | select(.state == "APPROVED")] | length')
         
         if [[ $approved -ge $required ]]; then
             echo "true"
-            return 0
+            exit 0
         else
             echo "false ($approved/$required approved)"
-            return 1
+            exit 1
         fi
         ;;
     
     # Project board management
     create-project)
-        local name="$2"
+        name="$2"
         echo_cmd "gh project create --owner \"$ORG\" --title \"$name\""
-        local project_info=$(gh project create --owner "$ORG" --title "$name" --format json)
-        local project_id=$(echo "$project_info" | jq -r '.id')
+        project_info=$(gh project create --owner "$ORG" --title "$name" --format json)
+        project_id=$(echo "$project_info" | jq -r '.id')
         
         if [[ -n "$project_id" ]]; then
             # Cache the project ID
@@ -261,7 +269,7 @@ case "${1:-help}" in
             echo "Project board ready: https://github.com/orgs/$ORG/projects/$project_id"
         else
             echo "Failed to create project"
-            return 1
+            exit 1
         fi
         ;;
     
@@ -271,27 +279,27 @@ case "${1:-help}" in
         ;;
     
     add-to-project)
-        local item_type="$2"  # issue or pr
-        local item_num="$3"
-        local project_id="${4:-$(cache_get "project_id")}"
+        item_type="$2"  # issue or pr
+        item_num="$3"
+        project_id="${4:-$(cache_get "project_id")}"
         
         if [[ -z "$project_id" ]]; then
             echo "No project ID provided or cached. Use 'p cache-project <name>' first."
-            return 1
+            exit 1
         fi
         
-        echo_cmd "gh project item-add \"$project_id\" --owner \"$ORG\" --url \"https://github.com/$ORG/$(basename $PWD)/${item_type}s/$item_num\""
-        gh project item-add "$project_id" --owner "$ORG" --url "https://github.com/$ORG/$(basename $PWD)/${item_type}s/$item_num"
+        echo_cmd "gh project item-add \"$project_id\" --owner \"$ORG\" --url \"https://github.com/$ORG/$(basename "$PWD")/${item_type}s/$item_num\""
+        gh project item-add "$project_id" --owner "$ORG" --url "https://github.com/$ORG/$(basename "$PWD")/${item_type}s/$item_num"
         ;;
     
     move-to-column)
-        local item_id="$2"
-        local column="$3"
-        local project_id="${4:-$(cache_get "project_id")}"
+        item_id="$2"
+        column="$3"
+        project_id="${4:-$(cache_get "project_id")}"
         
         if [[ -z "$project_id" ]]; then
             echo "No project ID provided or cached. Use 'p cache-project <name>' first."
-            return 1
+            exit 1
         fi
         
         echo_cmd "gh project item-edit --id \"$item_id\" --project-id \"$project_id\" --field-id \"Status\" --single-select-option-id \"$column\""
@@ -300,8 +308,8 @@ case "${1:-help}" in
     
     # Cache management
     cache-project)
-        local name="$2"
-        local project_id=$(gh project list --owner "$ORG" --limit 100 --json id,title | jq -r ".[] | select(.title == \"$name\") | .id")
+        name="$2"
+        project_id=$(gh project list --owner "$ORG" --limit 100 --json id,title | jq -r ".[] | select(.title == \"$name\") | .id")
         
         if [[ -n "$project_id" ]]; then
             cache_set "project_id" "$project_id"
@@ -309,7 +317,7 @@ case "${1:-help}" in
             echo "Cached project: $name (ID: $project_id)"
         else
             echo "Project not found: $name"
-            return 1
+            exit 1
         fi
         ;;
     
@@ -320,8 +328,8 @@ case "${1:-help}" in
     
     # Bulk operations for efficiency
     bulk-review)
-        local pr="$2"
-        local reviews_file="$3"
+        pr="$2"
+        reviews_file="$3"
         
         if [[ -f "$reviews_file" ]]; then
             jq -c '.[]' "$reviews_file" | while read -r review; do
@@ -351,8 +359,8 @@ case "${1:-help}" in
         echo_cmd "Initializing repository-specific memory system at $MEMORY_DIR"
         
         # Get current repo name
-        local repo_name=$(basename "$PWD")
-        local repo_memory_dir="$MEMORY_DIR/$repo_name"
+        repo_name=$(basename "$PWD")
+        repo_memory_dir="$MEMORY_DIR/$repo_name"
         
         # Create memory structure
         mkdir -p "$repo_memory_dir"/{patterns,embeddings,cache,config}
@@ -361,7 +369,7 @@ case "${1:-help}" in
         cat > "$repo_memory_dir/config/system.json" << EOF
 {
   "version": "1.0",
-  "initialized": "$(date -Iseconds)",
+  "initialized": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "repository": "$repo_name",
   "features": {
     "pattern_learning": true,
@@ -383,16 +391,16 @@ EOF
         ;;
     
     memory-learn)
-        local task_type="$2"
-        local contexts="$3"
-        local outcome="${4:-success}"
+        task_type="$2"
+        contexts="$3"
+        outcome="${4:-success}"
         
-        local repo_name=$(basename "$PWD")
-        local patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
+        repo_name=$(basename "$PWD")
+        patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
         
         # Create pattern entry
-        local pattern_entry=$(jq -nc \
-            --arg timestamp "$(date -Iseconds)" \
+        pattern_entry=$(jq -nc \
+            --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
             --arg task_type "$task_type" \
             --arg contexts "$contexts" \
             --arg outcome "$outcome" \
@@ -410,10 +418,10 @@ EOF
         # Update context frequency
         IFS=',' read -ra context_array <<< "$contexts"
         for context in "${context_array[@]}"; do
-            local freq_file="$MEMORY_DIR/$repo_name/cache/context_frequency.json"
+            freq_file="$MEMORY_DIR/$repo_name/cache/context_frequency.json"
             if [[ -f "$freq_file" ]]; then
-                local current_freq=$(jq -r --arg ctx "$context" '.[$ctx] // 0' "$freq_file")
-                jq --arg ctx "$context" --argjson freq $((current_freq + 1)) '.[$ctx] = $freq' "$freq_file" > "$freq_file.tmp"
+                current_freq=$(jq -r --arg ctx "$context" '.[$ctx] // 0' "$freq_file")
+                jq --arg ctx "$context" --argjson freq "$((current_freq + 1))" '.[$ctx] = $freq' "$freq_file" > "$freq_file.tmp"
                 mv "$freq_file.tmp" "$freq_file"
             else
                 jq -n --arg ctx "$context" '{($ctx): 1}' > "$freq_file"
@@ -424,13 +432,13 @@ EOF
         ;;
     
     memory-find)
-        local task_desc="$2"
-        local repo_name=$(basename "$PWD")
-        local patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
+        task_desc="$2"
+        repo_name=$(basename "$PWD")
+        patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
         
         if [[ ! -f "$patterns_file" ]]; then
             echo "No memory patterns found. Run 'p memory-init' first."
-            return 1
+            exit 1
         fi
         
         # Simple keyword-based similarity search
@@ -444,13 +452,13 @@ EOF
         ;;
     
     memory-suggest)
-        local keywords="$2"
-        local repo_name=$(basename "$PWD")
-        local freq_file="$MEMORY_DIR/$repo_name/cache/context_frequency.json"
+        keywords="$2"
+        repo_name=$(basename "$PWD")
+        freq_file="$MEMORY_DIR/$repo_name/cache/context_frequency.json"
         
         if [[ ! -f "$freq_file" ]]; then
             echo "No context frequency data available."
-            return 1
+            exit 1
         fi
         
         echo "Suggested contexts for keywords: $keywords"
@@ -461,22 +469,22 @@ EOF
         ;;
     
     memory-stats)
-        local repo_name=$(basename "$PWD")
-        local repo_memory_dir="$MEMORY_DIR/$repo_name"
+        repo_name=$(basename "$PWD")
+        repo_memory_dir="$MEMORY_DIR/$repo_name"
         
         if [[ ! -d "$repo_memory_dir" ]]; then
             echo "Memory system not initialized for this repository."
-            return 1
+            exit 1
         fi
         
         echo "Memory System Statistics for: $repo_name"
         echo "========================================"
         
         # Pattern counts
-        local routing_count=$(wc -l < "$repo_memory_dir/patterns/routing_decisions.jsonl" 2>/dev/null || echo "0")
-        local context_count=$(wc -l < "$repo_memory_dir/patterns/context_optimizations.jsonl" 2>/dev/null || echo "0")
-        local agent_count=$(wc -l < "$repo_memory_dir/patterns/agent_coordination.jsonl" 2>/dev/null || echo "0")
-        local error_count=$(wc -l < "$repo_memory_dir/patterns/error_resolutions.jsonl" 2>/dev/null || echo "0")
+        routing_count=$(wc -l < "$repo_memory_dir/patterns/routing_decisions.jsonl" 2>/dev/null || echo "0")
+        context_count=$(wc -l < "$repo_memory_dir/patterns/context_optimizations.jsonl" 2>/dev/null || echo "0")
+        agent_count=$(wc -l < "$repo_memory_dir/patterns/agent_coordination.jsonl" 2>/dev/null || echo "0")
+        error_count=$(wc -l < "$repo_memory_dir/patterns/error_resolutions.jsonl" 2>/dev/null || echo "0")
         
         echo "Pattern Counts:"
         echo "  Routing decisions: $routing_count"
@@ -485,7 +493,7 @@ EOF
         echo "  Error resolutions: $error_count"
         
         # Storage size
-        local storage_size=$(du -sh "$repo_memory_dir" 2>/dev/null | cut -f1)
+        storage_size=$(du -sh "$repo_memory_dir" 2>/dev/null | cut -f1)
         echo -e "\nStorage used: $storage_size"
         
         # Most used contexts
@@ -497,14 +505,14 @@ EOF
         ;;
     
     route-with-memory)
-        local task_desc="$2"
-        local repo_name=$(basename "$PWD")
+        task_desc="$2"
+        repo_name=$(basename "$PWD")
         
         echo "Enhanced routing for: $task_desc"
         echo "================================"
         
         # Get memory suggestions
-        local patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
+        patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
         if [[ -f "$patterns_file" ]]; then
             echo -e "\nMemory suggestions:"
             grep -i "$task_desc" "$patterns_file" 2>/dev/null | \
@@ -518,20 +526,20 @@ EOF
         ;;
     
     context-predict)
-        local keywords="$2"
-        local repo_name=$(basename "$PWD")
-        local patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
+        keywords="$2"
+        repo_name=$(basename "$PWD")
+        patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
         
         if [[ ! -f "$patterns_file" ]]; then
             echo "No patterns available for prediction."
-            return 1
+            exit 1
         fi
         
         echo "Predicting contexts for: $keywords"
         echo "=================================="
         
         # Find patterns with similar keywords
-        local predicted_contexts=$(grep -i "$keywords" "$patterns_file" 2>/dev/null | \
+        predicted_contexts=$(grep -i "$keywords" "$patterns_file" 2>/dev/null | \
             jq -r '.contexts' | \
             tr ',' '\n' | \
             sort | uniq -c | sort -rn | \
@@ -547,14 +555,14 @@ EOF
         ;;
     
     agent-suggest)
-        local task_type="$2"
-        local repo_name=$(basename "$PWD")
-        local agent_file="$MEMORY_DIR/$repo_name/patterns/agent_coordination.jsonl"
+        task_type="$2"
+        repo_name=$(basename "$PWD")
+        agent_file="$MEMORY_DIR/$repo_name/patterns/agent_coordination.jsonl"
         
         if [[ ! -f "$agent_file" ]]; then
             echo "No agent coordination patterns found."
             echo "Default suggestion: team-lead, developer"
-            return 0
+            exit 0
         fi
         
         echo "Optimal agent team for: $task_type"
@@ -568,8 +576,8 @@ EOF
         ;;
     
     memory-optimize)
-        local repo_name=$(basename "$PWD")
-        local repo_memory_dir="$MEMORY_DIR/$repo_name"
+        repo_name=$(basename "$PWD")
+        repo_memory_dir="$MEMORY_DIR/$repo_name"
         
         echo "Optimizing memory system..."
         
@@ -589,9 +597,9 @@ EOF
         ;;
     
     memory-backup)
-        local location="${2:-$HOME/claude-memory-backup}"
-        local repo_name=$(basename "$PWD")
-        local backup_name="claude-memory-$repo_name-$(date +%Y%m%d-%H%M%S).tar.gz"
+        location="${2:-$HOME/claude-memory-backup}"
+        repo_name=$(basename "$PWD")
+        backup_name="claude-memory-$repo_name-$(date +%Y%m%d-%H%M%S).tar.gz"
         
         echo "Backing up memory to: $location/$backup_name"
         
