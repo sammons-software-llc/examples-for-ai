@@ -1,5 +1,8 @@
 # Optimized Instructions for AI Agents
 
+> **Configuration Templates**: All configuration templates referenced in this document are available at:  
+> https://github.com/sammons-software-llc/examples-for-ai/tree/main/examples
+
 ## Critical Lead-In Prompt for Maximum Compliance
 
 <instructions>
@@ -199,11 +202,34 @@ src/
 ```
 
 ### Config Examples
-```
-# TODO: Add tsconfig.json template
-# TODO: Add eslint.config.ts template  
-# TODO: Add vite.config.ts template
-# TODO: Add package.json template
+
+Template configurations are available in the GitHub repository:
+
+- [tsconfig.json](https://github.com/sammons-software-llc/examples-for-ai/blob/main/examples/tsconfig.json.md)
+- [tsconfig.eslint.json](https://github.com/sammons-software-llc/examples-for-ai/blob/main/examples/tsconfig.eslint.json.md)
+- [eslint.config.ts](https://github.com/sammons-software-llc/examples-for-ai/blob/main/examples/eslint.config.md)
+- [vite.config.ts (root)](https://github.com/sammons-software-llc/examples-for-ai/blob/main/examples/vite.config.root.md)
+- [vite.config.ts (lib/ui)](https://github.com/sammons-software-llc/examples-for-ai/blob/main/examples/vite.config.lib-ui.md)
+- [package.json](https://github.com/sammons-software-llc/examples-for-ai/blob/main/examples/package.json.md)
+- [git commit format](https://github.com/sammons-software-llc/examples-for-ai/blob/main/examples/git-commit-format.md)
+
+#### Retrieving Config Templates
+
+To fetch a specific template using the GitHub CLI:
+
+```bash
+# Fetch a single template file
+gh api repos/sammons-software-llc/examples-for-ai/contents/examples/tsconfig.json.md \
+  --jq '.content' | base64 -d > tsconfig.json.md
+
+# Or use curl with the raw content URL
+curl -s https://raw.githubusercontent.com/sammons-software-llc/examples-for-ai/main/examples/tsconfig.json.md
+
+# Clone just the examples directory (sparse checkout)
+git clone --depth 1 --filter=blob:none --sparse \
+  https://github.com/sammons-software-llc/examples-for-ai.git
+cd examples-for-ai
+git sparse-checkout set examples
 ```
 
 ## Project Archetypes
