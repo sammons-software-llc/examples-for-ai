@@ -14,6 +14,8 @@ Refinement Process:
 - Optimize request phrasing for framework routing
 - Predict resource requirements
 - Apply memory insights if available (p memory-find)
+- Check memory health status (p memory-stats --check-health)
+- Trigger optimization if performance degraded
 
 OUTPUT: Refined request with clarified intent
 
@@ -143,6 +145,8 @@ PROCESS keywords (build, create, implement, complex):
 Before any action:
 □ ML/LLM scientist refinement completed
 □ Memory system consulted for patterns
+□ Memory system performance within targets
+□ Optimization triggered if thresholds exceeded
 □ Correct archetype identified and loaded
 □ Relevant personas activated
 □ Examples referenced for patterns
@@ -160,6 +164,8 @@ Before any action:
 ✅ ALWAYS follow the precise workflow in context/workflow.md
 ✅ ALWAYS validate against archetype requirements
 ✅ ALWAYS load error recovery protocols on failures
+✅ ALWAYS optimize memory when retrieval >100ms
+✅ ALWAYS backup before forced optimization
 
 === PERFORMANCE OPTIMIZATION ===
 ⚠️ CRITICAL: Use Task tool aggressively for:
@@ -193,11 +199,58 @@ When to Retrieve Memory:
 - For agent coordination: `p agent-suggest "$TASK_TYPE"`
 - When similar patterns exist: Check memory first
 
-Memory Performance Targets:
+Memory Performance Targets & Optimization:
 - Storage: <10ms write operations
 - Retrieval: <50ms pattern matching
 - Prediction accuracy: >85% for known patterns
 - Progressive improvement: Measurable within 10 interactions
+- Memory size: <100MB per repository
+
+When targets exceeded:
+1. Run `p memory-stats --check-health`
+2. If optimization recommended: `p memory-optimize`
+3. If severe degradation: `p memory-backup && p memory-optimize --force`
+4. Monitor post-optimization metrics
+
+=== MEMORY OPTIMIZATION TRIGGERS ===
+Run `p memory-optimize` when ANY of these conditions occur:
+
+PERFORMANCE TRIGGERS:
+- Pattern retrieval exceeds 100ms (2x target)
+- Memory storage exceeds 100MB per repository
+- Duplicate patterns exceed 20% of total patterns
+- Search accuracy drops below 70%
+
+USAGE TRIGGERS:
+- After every 100 new patterns recorded
+- When pattern count exceeds 500 total
+- After major refactoring or architectural changes
+- Weekly for active repositories (>50 patterns/week)
+
+AUTOMATIC OPTIMIZATION CHECKS:
+- During `p memory-stats` execution (suggest if needed)
+- After error recovery sequences
+- When memory-find returns >10 similar patterns
+- During repository maintenance cycles
+
+OPTIMIZATION COMMAND:
+```bash
+# Manual optimization
+p memory-optimize
+
+# Check if optimization needed
+p memory-stats --check-health
+
+# Force optimization with backup
+p memory-backup && p memory-optimize --force
+```
+
+OPTIMIZATION BENEFITS:
+- Removes duplicate patterns
+- Consolidates similar patterns
+- Improves search performance
+- Reduces storage overhead
+- Enhances prediction accuracy
 
 === INTEGRATION NOTES ===
 This ML/LLM-enhanced framework with P1.1 memory functionality integrates:
