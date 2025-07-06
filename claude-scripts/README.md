@@ -260,8 +260,6 @@ The tool is designed for:
 - **Performance**: Caching reduces redundant API calls
 - **Multi-agent**: Shared context enables coordination
 
-## Related Documentation
+## Additional Notes
 
-- `docs/SIMULATION-RESULTS.md` - Analysis from 50-project simulation
-- `docs/P-CLI-IMPROVEMENTS.md` - Future enhancement roadmap
-- `docs/test-p-echo.sh` - Echo functionality examples
+The `p` script was developed through simulation of 50 projects across different archetypes, optimizing for the most common sub-agent operations and coordination patterns.

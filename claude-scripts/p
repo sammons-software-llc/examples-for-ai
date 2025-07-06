@@ -413,7 +413,6 @@ DEBUGGING:
 SEE ALSO:
   gh(1) - GitHub CLI that this tool wraps
   README.md - Full documentation with more examples
-  docs/SIMULATION-RESULTS.md - Usage patterns from testing
 EOF
         ;;
     
