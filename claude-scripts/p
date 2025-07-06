@@ -8,6 +8,7 @@ set -euo pipefail
 
 readonly ORG="sammons-software-llc"
 readonly CACHE_DIR="${HOME}/.p-cli-cache"
+readonly MEMORY_DIR="${HOME}/.claude-memory"
 readonly CACHE_TTL=3600  # 1 hour
 
 # Debug mode - set P_DEBUG=1 to see commands
@@ -20,8 +21,9 @@ echo_cmd() {
     fi
 }
 
-# Initialize cache
+# Initialize directories
 [[ ! -d "$CACHE_DIR" ]] && mkdir -p "$CACHE_DIR"
+[[ ! -d "$MEMORY_DIR" ]] && mkdir -p "$MEMORY_DIR"
 
 # Cache helper
 cache_get() {
@@ -344,6 +346,261 @@ case "${1:-help}" in
         fi
         ;;
     
+    # Memory System Commands (P1.1 Implementation)
+    memory-init)
+        echo_cmd "Initializing repository-specific memory system at $MEMORY_DIR"
+        
+        # Get current repo name
+        local repo_name=$(basename "$PWD")
+        local repo_memory_dir="$MEMORY_DIR/$repo_name"
+        
+        # Create memory structure
+        mkdir -p "$repo_memory_dir"/{patterns,embeddings,cache,config}
+        
+        # Initialize config
+        cat > "$repo_memory_dir/config/system.json" << EOF
+{
+  "version": "1.0",
+  "initialized": "$(date -Iseconds)",
+  "repository": "$repo_name",
+  "features": {
+    "pattern_learning": true,
+    "context_prediction": true,
+    "agent_coordination": true,
+    "error_prevention": true
+  }
+}
+EOF
+        
+        # Create initial pattern files
+        touch "$repo_memory_dir/patterns/routing_decisions.jsonl"
+        touch "$repo_memory_dir/patterns/context_optimizations.jsonl"
+        touch "$repo_memory_dir/patterns/agent_coordination.jsonl"
+        touch "$repo_memory_dir/patterns/error_resolutions.jsonl"
+        
+        echo "Memory system initialized for repository: $repo_name"
+        echo "Location: $repo_memory_dir"
+        ;;
+    
+    memory-learn)
+        local task_type="$2"
+        local contexts="$3"
+        local outcome="${4:-success}"
+        
+        local repo_name=$(basename "$PWD")
+        local patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
+        
+        # Create pattern entry
+        local pattern_entry=$(jq -nc \
+            --arg timestamp "$(date -Iseconds)" \
+            --arg task_type "$task_type" \
+            --arg contexts "$contexts" \
+            --arg outcome "$outcome" \
+            '{
+                timestamp: $timestamp,
+                task_type: $task_type,
+                contexts: $contexts,
+                outcome: $outcome,
+                success: true,
+                usage_count: 1
+            }')
+        
+        echo "$pattern_entry" >> "$patterns_file"
+        
+        # Update context frequency
+        IFS=',' read -ra context_array <<< "$contexts"
+        for context in "${context_array[@]}"; do
+            local freq_file="$MEMORY_DIR/$repo_name/cache/context_frequency.json"
+            if [[ -f "$freq_file" ]]; then
+                local current_freq=$(jq -r --arg ctx "$context" '.[$ctx] // 0' "$freq_file")
+                jq --arg ctx "$context" --argjson freq $((current_freq + 1)) '.[$ctx] = $freq' "$freq_file" > "$freq_file.tmp"
+                mv "$freq_file.tmp" "$freq_file"
+            else
+                jq -n --arg ctx "$context" '{($ctx): 1}' > "$freq_file"
+            fi
+        done
+        
+        echo "Learned pattern: $task_type → $contexts"
+        ;;
+    
+    memory-find)
+        local task_desc="$2"
+        local repo_name=$(basename "$PWD")
+        local patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
+        
+        if [[ ! -f "$patterns_file" ]]; then
+            echo "No memory patterns found. Run 'p memory-init' first."
+            return 1
+        fi
+        
+        # Simple keyword-based similarity search
+        echo "Similar patterns for: $task_desc"
+        echo "------------------------"
+        
+        # Search for matching patterns
+        grep -i "$task_desc" "$patterns_file" 2>/dev/null | \
+            jq -r 'select(.success == true) | "Task: \(.task_type)\nContexts: \(.contexts)\nSuccess rate: \(.outcome)\n"' | \
+            head -9 || echo "No similar patterns found."
+        ;;
+    
+    memory-suggest)
+        local keywords="$2"
+        local repo_name=$(basename "$PWD")
+        local freq_file="$MEMORY_DIR/$repo_name/cache/context_frequency.json"
+        
+        if [[ ! -f "$freq_file" ]]; then
+            echo "No context frequency data available."
+            return 1
+        fi
+        
+        echo "Suggested contexts for keywords: $keywords"
+        echo "----------------------------------------"
+        
+        # Get top contexts by frequency
+        jq -r 'to_entries | sort_by(.value) | reverse | .[:5] | .[] | "\(.key) (used \(.value) times)"' "$freq_file"
+        ;;
+    
+    memory-stats)
+        local repo_name=$(basename "$PWD")
+        local repo_memory_dir="$MEMORY_DIR/$repo_name"
+        
+        if [[ ! -d "$repo_memory_dir" ]]; then
+            echo "Memory system not initialized for this repository."
+            return 1
+        fi
+        
+        echo "Memory System Statistics for: $repo_name"
+        echo "========================================"
+        
+        # Pattern counts
+        local routing_count=$(wc -l < "$repo_memory_dir/patterns/routing_decisions.jsonl" 2>/dev/null || echo "0")
+        local context_count=$(wc -l < "$repo_memory_dir/patterns/context_optimizations.jsonl" 2>/dev/null || echo "0")
+        local agent_count=$(wc -l < "$repo_memory_dir/patterns/agent_coordination.jsonl" 2>/dev/null || echo "0")
+        local error_count=$(wc -l < "$repo_memory_dir/patterns/error_resolutions.jsonl" 2>/dev/null || echo "0")
+        
+        echo "Pattern Counts:"
+        echo "  Routing decisions: $routing_count"
+        echo "  Context optimizations: $context_count"
+        echo "  Agent coordinations: $agent_count"
+        echo "  Error resolutions: $error_count"
+        
+        # Storage size
+        local storage_size=$(du -sh "$repo_memory_dir" 2>/dev/null | cut -f1)
+        echo -e "\nStorage used: $storage_size"
+        
+        # Most used contexts
+        if [[ -f "$repo_memory_dir/cache/context_frequency.json" ]]; then
+            echo -e "\nMost used contexts:"
+            jq -r 'to_entries | sort_by(.value) | reverse | .[:3] | .[] | "  \(.key): \(.value) times"' \
+                "$repo_memory_dir/cache/context_frequency.json"
+        fi
+        ;;
+    
+    route-with-memory)
+        local task_desc="$2"
+        local repo_name=$(basename "$PWD")
+        
+        echo "Enhanced routing for: $task_desc"
+        echo "================================"
+        
+        # Get memory suggestions
+        local patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
+        if [[ -f "$patterns_file" ]]; then
+            echo -e "\nMemory suggestions:"
+            grep -i "$task_desc" "$patterns_file" 2>/dev/null | \
+                jq -r 'select(.success == true) | .contexts' | \
+                sort | uniq -c | sort -rn | head -3 | \
+                awk '{print "  - " substr($0, index($0,$2))}'
+        fi
+        
+        echo -e "\nExecuting enhanced routing..."
+        echo "Use suggested contexts with traditional routing decision."
+        ;;
+    
+    context-predict)
+        local keywords="$2"
+        local repo_name=$(basename "$PWD")
+        local patterns_file="$MEMORY_DIR/$repo_name/patterns/routing_decisions.jsonl"
+        
+        if [[ ! -f "$patterns_file" ]]; then
+            echo "No patterns available for prediction."
+            return 1
+        fi
+        
+        echo "Predicting contexts for: $keywords"
+        echo "=================================="
+        
+        # Find patterns with similar keywords
+        local predicted_contexts=$(grep -i "$keywords" "$patterns_file" 2>/dev/null | \
+            jq -r '.contexts' | \
+            tr ',' '\n' | \
+            sort | uniq -c | sort -rn | \
+            head -5 | \
+            awk '{print $2}')
+        
+        if [[ -n "$predicted_contexts" ]]; then
+            echo "Likely contexts (by probability):"
+            echo "$predicted_contexts" | nl -w2 -s'. '
+        else
+            echo "No predictions available. Using defaults."
+        fi
+        ;;
+    
+    agent-suggest)
+        local task_type="$2"
+        local repo_name=$(basename "$PWD")
+        local agent_file="$MEMORY_DIR/$repo_name/patterns/agent_coordination.jsonl"
+        
+        if [[ ! -f "$agent_file" ]]; then
+            echo "No agent coordination patterns found."
+            echo "Default suggestion: team-lead, developer"
+            return 0
+        fi
+        
+        echo "Optimal agent team for: $task_type"
+        echo "=================================="
+        
+        # Find successful agent combinations
+        grep -i "$task_type" "$agent_file" 2>/dev/null | \
+            jq -r 'select(.success == true) | .agents' | \
+            sort | uniq -c | sort -rn | head -3 | \
+            awk '{print "  Option " NR ": " substr($0, index($0,$2))}'
+        ;;
+    
+    memory-optimize)
+        local repo_name=$(basename "$PWD")
+        local repo_memory_dir="$MEMORY_DIR/$repo_name"
+        
+        echo "Optimizing memory system..."
+        
+        # Consolidate patterns (remove duplicates, merge similar)
+        for pattern_file in "$repo_memory_dir"/patterns/*.jsonl; do
+            if [[ -f "$pattern_file" ]]; then
+                # Remove exact duplicates
+                sort -u "$pattern_file" > "$pattern_file.tmp"
+                mv "$pattern_file.tmp" "$pattern_file"
+            fi
+        done
+        
+        # Compress old entries (older than 30 days)
+        # (Implementation would archive old patterns)
+        
+        echo "Memory optimization complete."
+        ;;
+    
+    memory-backup)
+        local location="${2:-$HOME/claude-memory-backup}"
+        local repo_name=$(basename "$PWD")
+        local backup_name="claude-memory-$repo_name-$(date +%Y%m%d-%H%M%S).tar.gz"
+        
+        echo "Backing up memory to: $location/$backup_name"
+        
+        mkdir -p "$location"
+        tar -czf "$location/$backup_name" -C "$MEMORY_DIR" "$repo_name"
+        
+        echo "Backup complete: $location/$backup_name"
+        ;;
+    
     help|--help|-h)
         cat << EOF
 p - Project CLI for Multi-Agent GitHub Workflows
@@ -462,6 +719,48 @@ PERFORMANCE COMMANDS:
   clear-cache
     Remove all cached data
     Example: p clear-cache
+
+MEMORY SYSTEM COMMANDS (P1.1):
+  memory-init
+    Initialize repository-specific memory system
+    Creates: ~/.claude-memory/<repo-name>/ structure
+    Example: p memory-init
+    
+  memory-learn <task-type> <contexts> <outcome>
+    Record successful pattern for future use
+    Example: p memory-learn "auth-implementation" "security-expert,developer,testing" "success"
+    
+  memory-find <task-description>
+    Find similar patterns from memory
+    Example: p memory-find "implement authentication"
+    
+  memory-suggest <keywords>
+    Get context suggestions based on frequency
+    Example: p memory-suggest "auth login security"
+    
+  memory-stats
+    Show memory system statistics and performance
+    Example: p memory-stats
+    
+  route-with-memory <task-description>
+    Enhanced routing using memory insights
+    Example: p route-with-memory "add user authentication"
+    
+  context-predict <keywords>
+    Predict likely contexts for keywords
+    Example: p context-predict "database migration"
+    
+  agent-suggest <task-type>
+    Suggest optimal agent team from patterns
+    Example: p agent-suggest "security-review"
+    
+  memory-optimize
+    Consolidate and optimize memory storage
+    Example: p memory-optimize
+    
+  memory-backup [location]
+    Backup memory data to specified location
+    Example: p memory-backup ~/backups
 
 JSON FILE FORMATS:
   Tasks (bulk-create-tasks):
