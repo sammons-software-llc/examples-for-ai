@@ -93,6 +93,15 @@ SETUP:
 - Environment: `examples/setup/environment.md`
 - Git config: `examples/setup/git-configuration.md`
 
+PERSONAS (for sub-agents):
+- Architect: `examples/personas/architect.md`
+- Security: `examples/personas/security-expert.md`
+- Performance: `examples/personas/performance-expert.md`
+- UX/Design: `examples/personas/ux-designer.md`
+- Developer: `examples/personas/developer.md`
+- Team Lead: `examples/personas/team-lead-reviewer.md`
+- Integration: `examples/personas/integration-guide.md`
+
 STACK:
 - TypeScript: `examples/stack/typescript-config.md`
 - React patterns: `examples/stack/react-patterns.md`
