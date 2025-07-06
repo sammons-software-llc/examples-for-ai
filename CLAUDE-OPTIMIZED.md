@@ -23,9 +23,9 @@ This prevents cascading failures and enables autonomous error recovery.
 IF creating_new_project:
     THEN: Check ./archetypes/ for matching project type
     AND: Load appropriate archetype file
-    AND: IF complex_project THEN load ./examples/processes/20-step-development.md
-    AND: Load ./examples/config-files.md for project setup
-    AND: Load ./examples/setup/environment.md for environment configuration
+    AND: Load ./examples/process-overview.md for development workflow
+    AND: IF complex_project THEN load ./examples/development-phases.md
+    AND: Load ./examples/config/environment.md for environment setup
     OUTPUT: Follow archetype specifications exactly
     
     Available archetypes:
@@ -80,7 +80,7 @@ ELSE:
 Load these files when keywords are detected in user input:
 
 DEPLOYMENT keywords (deploy, production, release, docker, k8s, aws, gcp):
-→ Load ./examples/deployment-guide.md
+→ Load ./examples/config/deployment.md
 
 MONITORING keywords (metrics, logs, telemetry, observability, performance):
 → Load ./examples/monitoring-setup.md
@@ -89,7 +89,11 @@ TESTING keywords (test, spec, unit, integration, e2e, vitest):
 → Load ./examples/testing-patterns.md
 
 CONFIGURATION keywords (config, settings, env, dotenv, environment):
-→ Load ./examples/config-files.md
+→ Load ./examples/config/environment.md
+→ IF typescript THEN load ./examples/config/typescript.md
+→ IF build THEN load ./examples/config/build-tools.md
+→ IF lint THEN load ./examples/config/linting.md
+→ IF package THEN load ./examples/config/package-management.md
 
 PERFORMANCE keywords (optimize, slow, performance, benchmark, profiling):
 → Load ./personas/performance-expert.md
@@ -99,6 +103,11 @@ UX keywords (user, interface, design, accessibility, usability):
 
 WEBSOCKET keywords (websocket, realtime, socket.io, ws):
 → Load ./examples/websocket-setup.md
+
+PROCESS keywords (build, create, implement, complex):
+→ Load ./examples/process-overview.md
+→ IF complex_project THEN load ./examples/development-phases.md
+→ IF validation THEN load ./examples/validation-checklists.md
 
 === VALIDATION CHECKLIST ===
 Before any action:
@@ -144,5 +153,10 @@ This optimized framework integrates previously orphaned files through:
 - Trigger-based loading for keyword detection
 - Hierarchical context management
 - Error recovery safety nets
+- Structured configuration organization
 
-All 22 previously orphaned files are now accessible through intelligent routing.
+File Structure Changes:
+- Split large files: 20-step-development.md → process-overview.md + development-phases.md + validation-checklists.md
+- Organized config files: examples/config/ directory with specialized files
+- Removed empty directories: examples/stack/, examples/setup/
+- All 22 previously orphaned files now accessible through intelligent routing
