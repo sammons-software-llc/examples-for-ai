@@ -30,7 +30,7 @@ ALWAYS scope tasks so that they can be completed and are high quality easy to ex
 
 ### Preferences
 
-- typescript, tsx, nodejs, react, mobx, shadcn (UI) w/ tailwind & vite, prisma for ORM, winston for logging w/ debug/info/error
+- typescript, tsx, nodejs, react, mobx, radix ui primitives w/ tailwind css & vite, prisma for ORM, winston for logging w/ debug/info/error
 - pnpm over yarn, npm
 - mise for managing node, python, rust, etc. versions
 - vitest over jest/mocha

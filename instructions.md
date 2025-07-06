@@ -755,7 +755,7 @@ When asked to "keep going" or continue work:
 ### Core Technologies
 - **Languages**: TypeScript, TSX, Node.js
 - **Frontend**: React with MobX for state management
-- **UI Components**: shadcn with Tailwind CSS
+- **UI Components**: Radix UI primitives with Tailwind CSS styling
 - **Build Tools**: Vite, esbuild
 - **Testing**: Vitest (preferred over Jest/Mocha)
 - **ORM**: Prisma
