@@ -11,6 +11,8 @@ This repository serves as a remote source for the CLAUDE framework - an ML/LLM-o
 To use the CLAUDE framework in a new project, simply give this prompt to Claude Code:
 
 ```
+Spawn a sub-agent to do tho following:
+
 Please fetch the CLAUDE framework from the public repository and set up my project:
 
 1. Retrieve the main framework file:
@@ -23,7 +25,7 @@ gh api repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p --jq
 3. Initialize the memory system:
 ./claude-scripts/p memory-init
 
-Then begin working on my project: [DESCRIBE YOUR PROJECT HERE]
+Read the CLAUDE.md ENTIRELY. Then begin working on my project: [DESCRIBE YOUR PROJECT HERE]
 ```
 
 ### 🛠️ Add to Existing Repository
