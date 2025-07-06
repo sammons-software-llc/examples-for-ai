@@ -10,6 +10,16 @@ readonly ORG="sammons-software-llc"
 readonly CACHE_DIR="${HOME}/.p-cli-cache"
 readonly CACHE_TTL=3600  # 1 hour
 
+# Debug mode - set P_DEBUG=1 to see commands
+readonly DEBUG="${P_DEBUG:-0}"
+
+# Echo command helper
+echo_cmd() {
+    if [[ "$DEBUG" == "1" ]] || [[ "${P_ECHO:-0}" == "1" ]]; then
+        echo "► $*" >&2
+    fi
+}
+
 # Initialize cache
 [[ ! -d "$CACHE_DIR" ]] && mkdir -p "$CACHE_DIR"
 
@@ -34,11 +44,14 @@ cache_set() {
 case "${1:-help}" in
     # Repository commands
     create-repo)
+        echo_cmd "gh repo create \"$ORG/$2\" --private --clone"
         gh repo create "$ORG/$2" --private --clone
         ;;
     
     clone-framework)
+        echo_cmd "gh api \"repos/$ORG/examples-for-ai/contents/CLAUDE.md\" --jq '.content' | base64 -d > CLAUDE.md"
         gh api "repos/$ORG/examples-for-ai/contents/CLAUDE.md" --jq '.content' | base64 -d > CLAUDE.md
+        echo_cmd "mkdir -p context archetypes personas examples"
         mkdir -p context archetypes personas examples
         ;;
     
@@ -46,6 +59,7 @@ case "${1:-help}" in
     create-task)
         shift
         # Support --label, --assignee, --milestone
+        echo_cmd "gh issue create --label \"task\" $*"
         gh issue create --label "task" "$@"
         ;;
     
@@ -60,6 +74,7 @@ case "${1:-help}" in
                 body=$(echo "$task" | jq -r '.body // ""')
                 labels=$(echo "$task" | jq -r '.labels // "task" | @csv' | tr -d '"')
                 
+                echo_cmd "gh issue create --title \"$title\" --body \"...\" --label \"$labels\""
                 issue_num=$(gh issue create \
                     --title "$title" \
                     --body "$body" \
@@ -247,6 +262,10 @@ case "${1:-help}" in
     help|--help|-h)
         cat << EOF
 p - Optimized gh wrapper for sub-agent workflows
+
+ENVIRONMENT:
+  P_ECHO=1    Show commands before execution
+  P_DEBUG=1   Enable debug output
 
 BASIC COMMANDS:
   create-repo <name>              Create private repo
