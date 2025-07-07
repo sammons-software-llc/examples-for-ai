@@ -8,7 +8,22 @@ This repository serves as a remote source for the CLAUDE framework - an ML/LLM-o
 
 ### 🚀 Bootstrap a New Project (Copy & Paste Ready)
 
-To use the CLAUDE framework in a new project, simply give this prompt to Claude Code:
+To use the CLAUDE framework in a new project, you have two options:
+
+### Option 1: One-Command Installation (Recommended)
+```bash
+curl -sSL https://raw.githubusercontent.com/sammons-software-llc/examples-for-ai/main/install.sh | bash
+```
+
+This interactive installer will:
+- Download all framework files
+- Set up memory system
+- Optionally install personas, protocols, and archetypes
+- Configure global 'p' command
+- Run framework health check
+
+### Option 2: Manual Setup via Claude Code
+Give this prompt to Claude Code:
 
 ```
 Spawn a sub-agent to do the following:
@@ -527,6 +542,32 @@ gh api repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p --jq
 ```
 
 The commands automatically overwrite existing files with the latest versions from the repository.
+
+## Framework Enforcement
+
+The framework now includes automated enforcement mechanisms to prevent bypassing requirements:
+
+### Automatic Enforcement
+```bash
+# Install enforcement hooks (blocks non-compliant commits)
+./.framework-hooks.sh install
+
+# Check compliance at any time
+./.framework-enforcer.py check
+
+# The enforcer will block:
+# - File edits without loading personas
+# - Commits without framework compliance
+# - Implementation without proper setup
+```
+
+### Manual Compliance Check
+```bash
+# Built into p-cli
+p framework-check
+```
+
+This ensures agents and developers follow the framework requirements before implementation.
 
 ## Spawning Sub-Agents with Framework
 
