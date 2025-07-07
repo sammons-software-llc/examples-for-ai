@@ -593,7 +593,50 @@ EOF
         # Compress old entries (older than 30 days)
         # (Implementation would archive old patterns)
         
-        echo "Memory optimization complete."
+        echo "✅ Memory optimization complete"
+        ;;
+    
+    framework-health)
+        echo "🔍 Checking CLAUDE framework status..."
+        
+        # Check if CLAUDE.md accessible
+        if grep -q "PRIMARY DIRECTIVE" CLAUDE.md 2>/dev/null; then
+            echo "✅ CLAUDE.md accessible"
+        else
+            echo "❌ CLAUDE.md not found - reloading needed"
+            echo "   Run: cat CLAUDE.md"
+        fi
+        
+        # Check recent memory usage
+        repo_name=$(basename "$PWD")
+        repo_memory_dir="$MEMORY_DIR/$repo_name"
+        if [[ -d "$repo_memory_dir" ]]; then
+            recent_memory=$(find "$repo_memory_dir" -name "*.jsonl" -mmin -30 2>/dev/null | wc -l)
+            if [ "$recent_memory" -gt 0 ]; then
+                echo "✅ Memory system active ($recent_memory recent operations)"
+            else
+                echo "⚠️  No recent memory activity"
+            fi
+        else
+            echo "❌ Memory not initialized for this repo"
+            echo "   Run: p memory-init"
+        fi
+        
+        # Check for framework markers
+        if [[ -f ".claude-framework-active" ]] || [[ -f "ALWAYS-CHECK-CLAUDE.md" ]]; then
+            echo "✅ Framework markers present"
+        else
+            echo "💡 Consider adding framework markers:"
+            echo "   touch .claude-framework-active"
+        fi
+        
+        # Suggest recovery if needed
+        if [ "$recent_memory" -eq 0 ] 2>/dev/null; then
+            echo ""
+            echo "💡 Recovery suggestions:"
+            echo "   p memory-find 'framework-core'"
+            echo "   cat CLAUDE.md context/workflow.md"
+        fi
         ;;
     
     memory-backup)
@@ -769,6 +812,11 @@ MEMORY SYSTEM COMMANDS (P1.1):
   memory-backup [location]
     Backup memory data to specified location
     Example: p memory-backup ~/backups
+    
+  framework-health
+    Check CLAUDE framework status and memory system
+    Suggests recovery actions if framework is lost
+    Example: p framework-health
 
 JSON FILE FORMATS:
   Tasks (bulk-create-tasks):

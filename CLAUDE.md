@@ -37,6 +37,27 @@ ON ANY COMMAND FAILURE OR ERROR:
 IMMEDIATELY load ./examples/protocols/error-recovery.md
 This prevents cascading failures and enables autonomous error recovery.
 
+=== CONTEXT PERSISTENCE CHECKS ===
+TRIGGER: Every 10 operations OR when you notice:
+- Missing framework guidance
+- Routing decisions without framework
+- No memory system usage
+- Generic responses without persona loading
+
+ACTION: Immediately run:
+`grep -c "PRIMARY DIRECTIVE" CLAUDE.md || (echo "Framework lost - reloading" && cat CLAUDE.md)`
+
+=== 🚨 CRITICAL PERSISTENT RULES 🚨 ===
+[NEVER REMOVE - CORE FRAMEWORK]
+1. ML/LLM scientist refinement ALWAYS first
+2. Load ./personas/ml-llm-scientist.md before ANY processing
+3. On errors: load ./examples/protocols/error-recovery.md
+4. Memory operations via p-cli commands
+5. Check framework health every 10 operations
+
+[COMPACT-SAFE REFERENCE]
+Primary: CLAUDE.md | Workflow: context/workflow.md | Memory: p memory-* commands
+
 === MEMORY SYSTEM INTEGRATION ===
 Memory Operations via p-cli:
 - `p memory-init` - Initialize repository-specific memory

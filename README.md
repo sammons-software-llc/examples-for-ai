@@ -11,7 +11,7 @@ This repository serves as a remote source for the CLAUDE framework - an ML/LLM-o
 To use the CLAUDE framework in a new project, simply give this prompt to Claude Code:
 
 ```
-Spawn a sub-agent to do tho following:
+Spawn a sub-agent to do the following:
 
 Please fetch the CLAUDE framework from the public repository and set up my project:
 
@@ -480,3 +480,33 @@ p agent-suggest "real-time-feature"
 - **User Experience**: 4.8/5.0 satisfaction rating
 
 This optimized architecture ensures Claude Code operates as a world-class autonomous engineering assistant, delivering consistent, high-quality results while continuously improving through advanced ML/LLM optimization techniques.
+
+## Maintaining Framework Context
+
+Claude Code's context window can drop CLAUDE.md during long conversations. To keep the framework active:
+
+### Quick Recovery Commands
+```bash
+# Check framework health
+p framework-health
+
+# Quick reload if framework seems lost
+cat CLAUDE.md && echo "Framework reloaded"
+
+# Memory-based recovery
+p memory-find "framework-core"
+```
+
+### Best Practices
+1. **Periodic Checks**: Every 10-15 messages, verify framework is active
+2. **Watch for Signs**: Generic responses, no routing logic, missing memory operations
+3. **Proactive Refresh**: When context usage approaches 70%, reload CLAUDE.md
+4. **Use Markers**: Create `.claude-framework-active` file as a reminder
+
+### If Framework Is Lost
+Say one of these to Claude Code:
+- "Check CLAUDE.md framework status"
+- "Reload CLAUDE framework if needed"
+- "Are you still following CLAUDE.md?"
+
+For detailed persistence strategies, see [CLAUDE-CONTEXT-PERSISTENCE.md](./CLAUDE-CONTEXT-PERSISTENCE.md).
