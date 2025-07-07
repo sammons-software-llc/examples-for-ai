@@ -2,6 +2,7 @@
 #
 # p - Refined gh wrapper for sub-agent workflows
 # Optimized based on 50-project simulation
+# Version: 2.1.0
 #
 
 set -euo pipefail
@@ -652,6 +653,16 @@ EOF
         echo "Backup complete: $location/$backup_name"
         ;;
     
+    version|--version|-v)
+        echo "p-cli version 2.1.0"
+        echo ""
+        echo "To check for updates:"
+        echo "  curl -s https://api.github.com/repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p | jq -r .sha"
+        echo ""
+        echo "To update to latest:"
+        echo "  gh api repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p --jq '.content' | base64 -d > claude-scripts/p && chmod +x claude-scripts/p"
+        ;;
+    
     help|--help|-h)
         cat << EOF
 p - Project CLI for Multi-Agent GitHub Workflows
@@ -817,6 +828,11 @@ MEMORY SYSTEM COMMANDS (P1.1):
     Check CLAUDE framework status and memory system
     Suggests recovery actions if framework is lost
     Example: p framework-health
+
+UTILITY COMMANDS:
+  version | --version | -v
+    Show p-cli version and update instructions
+    Example: p version
 
 JSON FILE FORMATS:
   Tasks (bulk-create-tasks):

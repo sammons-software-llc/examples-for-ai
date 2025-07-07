@@ -18,7 +18,7 @@ Please fetch the CLAUDE framework from the public repository and set up my proje
 1. Retrieve the main framework file:
 gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d > CLAUDE.md
 
-2. Download and install the p-cli tool:
+2. Download and install the p-cli tool (updates existing version):
 mkdir -p claude-scripts
 gh api repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p --jq '.content' | base64 -d > claude-scripts/p && chmod +x claude-scripts/p
 
@@ -38,7 +38,7 @@ Add the CLAUDE framework to my current repository:
 1. Download CLAUDE.md:
 gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d > CLAUDE.md
 
-2. Install p-cli:
+2. Install/update p-cli:
 mkdir -p claude-scripts
 gh api repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p --jq '.content' | base64 -d > claude-scripts/p && chmod +x claude-scripts/p
 
@@ -61,11 +61,11 @@ Set up the complete CLAUDE framework:
 # Core framework
 gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d > CLAUDE.md
 
-# P-CLI tool
+# P-CLI tool (always downloads latest version)
 mkdir -p claude-scripts
 gh api repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p --jq '.content' | base64 -d > claude-scripts/p && chmod +x claude-scripts/p
 # Optional: Create symlink for global access
-ln -s $(pwd)/claude-scripts/p /usr/local/bin/p
+ln -sf $(pwd)/claude-scripts/p /usr/local/bin/p
 
 # Initialize memory system
 ./claude-scripts/p memory-init
@@ -510,3 +510,20 @@ Say one of these to Claude Code:
 - "Are you still following CLAUDE.md?"
 
 For detailed persistence strategies, see [CLAUDE-CONTEXT-PERSISTENCE.md](./CLAUDE-CONTEXT-PERSISTENCE.md).
+
+## Updating the Framework
+
+To update to the latest version of CLAUDE framework and p-cli:
+
+```bash
+# Update CLAUDE.md
+gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d > CLAUDE.md
+
+# Update p-cli tool
+gh api repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p --jq '.content' | base64 -d > claude-scripts/p && chmod +x claude-scripts/p
+
+# Check framework health after update
+./claude-scripts/p framework-health
+```
+
+The commands automatically overwrite existing files with the latest versions from the repository.
