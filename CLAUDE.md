@@ -23,8 +23,13 @@ OUTPUT: Refined request with clarified intent
 To use this framework in a new repository, retrieve specific files via gh CLI:
 ```bash
 gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d
-# ./ in prompt links for this framework equates to repos/sammons-software-llc/example-for-ai/
+# ./ in prompt links for this framework equates to repos/sammons-software-llc/examples-for-ai/
 ```
+
+CRITICAL: When spawning sub-agents or working in a new repository:
+1. ALWAYS fetch framework files from GitHub, never try to read locally
+2. Sub-agents MUST follow this framework - include "Read CLAUDE.md first" in their prompt
+3. Replace ./file paths with: gh api repos/sammons-software-llc/examples-for-ai/contents/file
 
 === CONTEXT FILES ===
 Load these contexts IN ORDER:
@@ -187,6 +192,23 @@ Before any action:
 ✅ ALWAYS load error recovery protocols on failures
 ✅ ALWAYS optimize memory when retrieval >100ms
 ✅ ALWAYS backup before forced optimization
+
+=== SUB-AGENT COORDINATION ===
+When spawning sub-agents via Task tool:
+1. ALWAYS include "Read CLAUDE.md first" in the prompt
+2. For remote work: Specify GitHub API for file fetching
+3. For local work: Confirm framework exists in current repo
+4. Sub-agents inherit this framework - enforce it explicitly
+
+Example for remote sub-agent:
+```
+Task: [Your task description]
+
+CRITICAL: First fetch and read CLAUDE framework:
+gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d > CLAUDE.md && cat CLAUDE.md
+
+Then follow the framework's routing and decision tree.
+```
 
 === PERFORMANCE OPTIMIZATION ===
 ⚠️ CRITICAL: Use Task tool aggressively for:

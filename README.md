@@ -527,3 +527,27 @@ gh api repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p --jq
 ```
 
 The commands automatically overwrite existing files with the latest versions from the repository.
+
+## Spawning Sub-Agents with Framework
+
+When delegating tasks to sub-agents, ensure they follow the CLAUDE framework:
+
+### For Remote Projects (New Repository)
+Include this in your sub-agent prompt:
+```
+IMPORTANT: First, fetch and read the CLAUDE framework:
+gh api repos/sammons-software-llc/examples-for-ai/contents/CLAUDE.md --jq '.content' | base64 -d > CLAUDE.md
+cat CLAUDE.md
+
+When loading framework files (personas, examples, etc.), fetch from GitHub:
+gh api repos/sammons-software-llc/examples-for-ai/contents/[path] --jq '.content' | base64 -d
+```
+
+### For Local Projects (Existing Framework)
+Include this in your sub-agent prompt:
+```
+IMPORTANT: Read and follow the CLAUDE framework:
+cat CLAUDE.md
+```
+
+See [SUB-AGENT-TEMPLATE.md](./SUB-AGENT-TEMPLATE.md) for complete templates and examples.
