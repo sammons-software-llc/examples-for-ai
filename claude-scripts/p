@@ -2,7 +2,7 @@
 #
 # p - Refined gh wrapper for sub-agent workflows
 # Optimized based on 50-project simulation
-# Version: 2.1.0
+# Version: 2.2.0
 #
 
 set -euo pipefail
@@ -640,6 +640,67 @@ EOF
         fi
         ;;
     
+    framework-check)
+        echo "🔍 FRAMEWORK COMPLIANCE CHECK"
+        echo "============================"
+        
+        COMPLIANCE_LOG=".framework-compliance.log"
+        VIOLATIONS=0
+        
+        # Check 1: ML/LLM Scientist Loaded
+        if ! grep -q "ML/LLM scientist loaded" "$COMPLIANCE_LOG" 2>/dev/null; then
+            echo "❌ ML/LLM scientist persona NOT loaded"
+            echo "   ACTION: cat personas/ml-llm-scientist.md"
+            echo "   LOG: echo 'ML/LLM scientist loaded' >> $COMPLIANCE_LOG"
+            ((VIOLATIONS++))
+        else
+            echo "✅ ML/LLM scientist loaded"
+        fi
+        
+        # Check 2: Context Files
+        for file in "about-ben.md" "workflow.md" "tech-stack.md"; do
+            if ! grep -q "$file loaded" "$COMPLIANCE_LOG" 2>/dev/null; then
+                echo "❌ Required context file NOT loaded: $file"
+                echo "   ACTION: cat context/$file"
+                echo "   LOG: echo '$file loaded' >> $COMPLIANCE_LOG"
+                ((VIOLATIONS++))
+            else
+                echo "✅ Context file loaded: $file"
+            fi
+        done
+        
+        # Check 3: Memory System
+        if ! ls "$MEMORY_DIR/$(basename "$PWD")" >/dev/null 2>&1; then
+            echo "❌ Memory system NOT initialized"
+            echo "   ACTION: p memory-init"
+            ((VIOLATIONS++))
+        else
+            echo "✅ Memory system active"
+        fi
+        
+        # Check 4: Archetype
+        if [ ! -f ".selected-archetype" ]; then
+            echo "❌ No archetype selected"
+            echo "   ACTION: echo 'archetype-name' > .selected-archetype"
+            ((VIOLATIONS++))
+        else
+            echo "✅ Archetype selected: $(cat .selected-archetype)"
+        fi
+        
+        echo "============================"
+        
+        if [ $VIOLATIONS -gt 0 ]; then
+            echo "❌ FRAMEWORK VIOLATIONS: $VIOLATIONS"
+            echo ""
+            echo "⛔ IMPLEMENTATION BLOCKED"
+            echo "Complete the missing steps above before proceeding."
+            exit 1
+        else
+            echo "✅ FRAMEWORK COMPLIANT"
+            echo "You may proceed with implementation."
+        fi
+        ;;
+    
     memory-backup)
         location="${2:-$HOME/claude-memory-backup}"
         repo_name=$(basename "$PWD")
@@ -654,7 +715,7 @@ EOF
         ;;
     
     version|--version|-v)
-        echo "p-cli version 2.1.0"
+        echo "p-cli version 2.2.0"
         echo ""
         echo "To check for updates:"
         echo "  curl -s https://api.github.com/repos/sammons-software-llc/examples-for-ai/contents/claude-scripts/p | jq -r .sha"
@@ -828,6 +889,11 @@ MEMORY SYSTEM COMMANDS (P1.1):
     Check CLAUDE framework status and memory system
     Suggests recovery actions if framework is lost
     Example: p framework-health
+    
+  framework-check
+    Verify framework compliance before implementation
+    Checks all required steps have been completed
+    Example: p framework-check
 
 UTILITY COMMANDS:
   version | --version | -v
